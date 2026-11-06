@@ -1,8 +1,11 @@
 parameters:
-    level: 8
+    level: 5
     paths:
         - lib
-    excludePaths:
-        - vendor
-        - vendor-bin
+    bootstrapFiles:
+        - vendor/autoload.php
+    scanFiles:
+        - tests/stubs/static-analysis/oc.php
+        - tests/stubs/static-analysis/oca.php
+    phpVersion: 80400
     treatPhpDocTypesAsCertain: false
