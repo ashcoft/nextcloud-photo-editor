@@ -1,0 +1,28 @@
+/* SPDX-FileCopyrightText: 2026 Photo Editor Contributors */
+/* SPDX-License-Identifier: MIT */
+
+.section-photo-editor .photo-editor-setting {
+	margin-bottom: 1rem;
+}
+
+.section-photo-editor .photo-editor-setting label {
+	display: inline-block;
+	min-width: 12rem;
+	margin-right: 0.5rem;
+	vertical-align: middle;
+}
+
+.section-photo-editor .photo-editor-setting input[type='number'] {
+	width: 6rem;
+}
+
+.section-photo-editor .photo-editor-hint {
+	margin: 0.25rem 0 0;
+	color: var(--color-text-maxcontrast);
+	font-size: 0.875rem;
+}
+
+.section-photo-editor .photo-editor-status {
+	margin-left: 0.75rem;
+	font-size: 0.875rem;
+}

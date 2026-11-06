@@ -1,0 +1,8 @@
+parameters:
+    level: 8
+    paths:
+        - lib
+    excludePaths:
+        - vendor
+        - vendor-bin
+    treatPhpDocTypesAsCertain: false

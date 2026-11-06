@@ -1,0 +1,193 @@
+<?php
+
+/**
+ * SPDX-FileCopyrightText: 2026 Photo Editor Contributors
+ * SPDX-License-Identifier: MIT
+ */
+
+declare(strict_types=1);
+
+namespace OCA\PhotoEditor\Tests\Unit;
+
+use OCA\PhotoEditor\Config\AppConfig;
+use OCA\PhotoEditor\Controller\FileController;
+use OCA\PhotoEditor\Service\FileService;
+use OCA\PhotoEditor\Service\ThumbnailService;
+use OCA\PhotoEditor\Tests\Fixtures\InMemoryAppConfig;
+use OCP\AppFramework\Http;
+use OCP\Files\File;
+use OCP\IRequest;
+use OCP\IURLGenerator;
+use OCP\Lock\ILockingProvider;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
+
+/**
+ * Test suite for the save endpoint of the FileController.
+ *
+ * The controller is exercised for real; only its collaborators are doubled.
+ *
+ * @covers \OCA\PhotoEditor\Controller\FileController
+ */
+#[AllowMockObjectsWithoutExpectations]
+class FileControllerSaveTest extends TestCase
+{
+    /** A valid 1x1 PNG as a data URL. */
+    private function pngDataUrl(): string
+    {
+        return 'data:image/png;base64,'
+            . 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    }
+
+    /**
+     * Build a controller whose file lookup resolves to $file.
+     *
+     * @param array<string, mixed> $params Request parameters.
+     */
+    private function controller(
+        File $file,
+        array $params = [],
+        ?ILockingProvider $locking = null,
+    ): FileController {
+        $fileService = $this->createMock(FileService::class);
+        $fileService->method('resolveFile')->willReturn($file);
+        $fileService->method('canSave')->willReturnCallback(
+            static fn (File $f): bool => $f->isUpdateable()
+                && !str_ends_with($f->getName(), '.psd')
+                && !str_ends_with($f->getName(), '.psb'),
+        );
+        $fileService->method('exceedsMaxSize')->willReturn(false);
+        $fileService->method('getMaxFileSize')->willReturn(50 * 1024 * 1024);
+
+        $request = $this->createMock(IRequest::class);
+        $request->method('getParam')->willReturnCallback(
+            static fn (string $name, $default = null) => $params[$name] ?? $default,
+        );
+
+        return new FileController(
+            'photo_editor',
+            $request,
+            $fileService,
+            new AppConfig(new InMemoryAppConfig(), $this->createMock(LoggerInterface::class)),
+            $this->createMock(ThumbnailService::class),
+            $this->createMock(IURLGenerator::class),
+            $this->createMock(LoggerInterface::class),
+            $locking ?? $this->createMock(ILockingProvider::class),
+        );
+    }
+
+    /**
+     * An image file whose successive getEtag() calls return the given values.
+     *
+     * PHPUnit keeps the *first* stub registered for a method, so the sequence
+     * is configured here in one place.
+     *
+     * @param list<string> $etags
+     */
+    private function imageFile(
+        array $etags = ['etag-a'],
+        string $name = 'photo.png',
+        bool $updateable = true,
+    ): File {
+        $file = $this->createMock(File::class);
+        $file->method('getId')->willReturn(42);
+        $file->method('getName')->willReturn($name);
+        $file->method('getSize')->willReturn(2048);
+        $file->method('getMimeType')->willReturn('image/png');
+        $file->method('getPath')->willReturn('/alice/files/pictures/' . $name);
+        $file->method('isReadable')->willReturn(true);
+        $file->method('isUpdateable')->willReturn($updateable);
+        $file->method('getEtag')->willReturnOnConsecutiveCalls(...$etags);
+        $file->method('getMTime')->willReturn(1700000000);
+
+        return $file;
+    }
+
+    public function testSavesAndReturnsTheNewVersion(): void
+    {
+        $file = $this->imageFile(['etag-a', 'etag-b']);
+        $controller = $this->controller($file, ['image' => $this->pngDataUrl(), 'etag' => 'etag-a']);
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+        $this->assertSame('etag-b', $response->getData()['etag']);
+    }
+
+    public function testRefusesASaveWhenTheFileChanged(): void
+    {
+        $file = $this->imageFile(['etag-b']);
+        $controller = $this->controller($file, ['image' => $this->pngDataUrl(), 'etag' => 'etag-a']);
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_CONFLICT, $response->getStatus());
+    }
+
+    public function testRefusesASaveWithoutAVersion(): void
+    {
+        $file = $this->imageFile();
+        $controller = $this->controller($file, ['image' => $this->pngDataUrl()]);
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+    }
+
+    public function testRefusesASaveWithoutImageData(): void
+    {
+        $file = $this->imageFile();
+        $controller = $this->controller($file, ['etag' => 'etag-a']);
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+    }
+
+    public function testRefusesInvalidImageData(): void
+    {
+        $file = $this->imageFile();
+        $controller = $this->controller($file, [
+            'image' => 'data:image/png;base64,QUJD',
+            'etag' => 'etag-a',
+        ]);
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+    }
+
+    public function testRefusesAnUnsupportedDataUrlScheme(): void
+    {
+        $file = $this->imageFile();
+        $controller = $this->controller($file, [
+            'image' => 'data:image/tiff;base64,AAAA',
+            'etag' => 'etag-a',
+        ]);
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+    }
+
+    public function testRefusesToSaveAReadOnlyFile(): void
+    {
+        $file = $this->imageFile(updateable: false);
+        $controller = $this->controller($file, ['image' => $this->pngDataUrl(), 'etag' => 'etag-a']);
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
+    }
+
+    public function testRefusesToSaveAPsd(): void
+    {
+        $file = $this->imageFile(['etag-a'], 'art.psd');
+        $controller = $this->controller($file, ['image' => $this->pngDataUrl(), 'etag' => 'etag-a']);
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_UNSUPPORTED_MEDIA_TYPE, $response->getStatus());
+    }
+}
