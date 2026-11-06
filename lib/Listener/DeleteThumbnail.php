@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\PhotoEditor\Listener;
 
-use OCA\PhotoEditor\AppInfo\Application;
 use OCA\PhotoEditor\Service\ThumbnailService;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
@@ -70,23 +69,33 @@ class DeleteThumbnail implements IEventListener
     /**
      * Remove the thumbnails of every supported image inside a folder being
      * deleted.
+     *
+     * The lookup cannot rely on the current MIME type or extension: a drawing
+     * that was renamed to an unrelated extension after its thumbnail was
+     * cached would be missed. The per-file layout makes this a folder lookup
+     * per candidate rather than a scan.
      */
     private function deleteFolderThumbnails(Folder $folder): void
     {
-        try {
-            foreach ($folder->searchByMime('image') as $node) {
-                if ($node instanceof File && Application::isSupportedFile($node->getName())) {
-                    $this->thumbnailService->deleteForFileId((int) $node->getId());
+        $candidates = [];
+
+        foreach (['image', 'application'] as $mimePart) {
+            try {
+                foreach ($folder->searchByMime($mimePart) as $node) {
+                    if ($node instanceof File) {
+                        $candidates[(int) $node->getId()] = true;
+                    }
                 }
+            } catch (\Throwable) {
+                // A folder we cannot enumerate is not worth failing the
+                // deletion over; the orphaned thumbnails are only a small cache.
             }
-            foreach ($folder->searchByMime('application') as $node) {
-                if ($node instanceof File && Application::isSupportedFile($node->getName())) {
-                    $this->thumbnailService->deleteForFileId((int) $node->getId());
-                }
+        }
+
+        foreach (array_keys($candidates) as $fileId) {
+            if ($this->thumbnailService->hasThumbnail($fileId)) {
+                $this->thumbnailService->deleteForFileId($fileId);
             }
-        } catch (\Throwable) {
-            // A folder we cannot enumerate is not worth failing the deletion
-            // over; the orphaned thumbnails are only a small cache.
         }
     }
 }

@@ -9,7 +9,14 @@
  * shape, so the UI does not branch on the format.
  */
 
-import { compositeDocument, headerSummary, parsePsd, summarizeLayers, type LayerSummary } from '../psd'
+import {
+  compositeDocument,
+  headerSummary,
+  isRenderable,
+  parsePsd,
+  summarizeLayers,
+  type LayerSummary,
+} from '../psd'
 import { decodeImageToCanvas } from './decode'
 
 export interface LoadedDocument {
@@ -65,6 +72,15 @@ async function loadPsd(bytes: Uint8Array): Promise<LoadedDocument> {
   } catch (error) {
     throw new DocumentLoadError(
       `Could not read this Photoshop file: ${error instanceof Error ? error.message : 'unknown error'}`,
+    )
+  }
+
+  // The compositor only converts RGB and grayscale channels. Drawing a CMYK or
+  // Lab document with the layer path would treat its channels as RGB and show
+  // the wrong colours, so those are refused instead.
+  if (!isRenderable(document.header)) {
+    throw new DocumentLoadError(
+      'This Photoshop file uses a colour mode the editor cannot display yet (CMYK or Lab).',
     )
   }
 

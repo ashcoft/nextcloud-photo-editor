@@ -40,13 +40,22 @@ class Application extends App implements IBootstrap
     public const CANONICAL_PSB_MIME = 'image/vnd.adobe.photoshop-large';
 
     /**
-     * Raster formats the editor can open and write back.
+     * Raster formats the editor can open.
      *
      * PSD/PSB are listed separately: they can be opened and composited but a
      * save writes a flattened raster export rather than a layered document,
      * because the editor does not re-encode the layer stack yet.
      */
     public const EDITABLE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif'];
+
+    /**
+     * Formats the editor can write back.
+     *
+     * A browser canvas only encodes PNG and JPEG reliably; GIF, BMP and AVIF
+     * fall back to PNG bytes, which would be written into a file still named
+     * `.gif`. Those formats are opened read-only and offered through Export.
+     */
+    public const SAVEABLE_EXTENSIONS = ['png', 'jpg', 'jpeg'];
 
     public const PSD_EXTENSIONS = ['psd', 'psb'];
 
@@ -139,6 +148,20 @@ class Application extends App implements IBootstrap
         $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
 
         return in_array($extension, self::EDITABLE_EXTENSIONS, true);
+    }
+
+    /**
+     * Whether a file name is a raster format the editor can write back.
+     *
+     * Only PNG and JPEG: a browser canvas encodes those reliably, and the
+     * other formats it decodes would otherwise be overwritten with PNG bytes
+     * under their original extension.
+     */
+    public static function isSaveableFile(string $fileName): bool
+    {
+        $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+        return in_array($extension, self::SAVEABLE_EXTENSIONS, true);
     }
 
     /**

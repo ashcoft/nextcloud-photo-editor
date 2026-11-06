@@ -28,6 +28,28 @@ import {
 const RESOURCE_SIGNATURE = '8BIM'
 const RESOURCE_SIGNATURE_64 = '8B64'
 
+/**
+ * Largest canvas the reader will accept, in pixels.
+ *
+ * The compositor allocates several full-size buffers per channel, so a small
+ * file that declares an enormous canvas would exhaust the tab's memory. 256M
+ * pixels is well above any real document (a 16000x16000 image) while staying
+ * within what a browser can hold.
+ */
+const MAX_PIXELS = 256 * 1024 * 1024
+
+/**
+ * Tagged-block keys whose length is 64-bit in PSB files.
+ *
+ * Everything else keeps the 4-byte length even in PSB, so `luni` and `lsct`
+ * must not be read as 64-bit or the block boundary is lost.
+ */
+const LARGE_TAGGED_KEYS = new Set([
+  'LMsk', 'Lr16', 'Lr32', 'Layr', 'Mt16', 'Mt32', 'Mtrn', 'Alph', 'FMsk',
+  'lnk2', 'FEid', 'FXid', 'PxSD', 'cinf', 'lnk3', 'lnkE', 'pths', 'extd',
+  'extn', 'FELS', 'artd',
+])
+
 export class PsdParseError extends Error {
   constructor(message: string) {
     super(message)
@@ -46,8 +68,10 @@ export function parsePsd(bytes: Uint8Array): PsdDocument {
   const header = readHeader(reader)
   const isPsb = header.version === 2
 
-  const colorModeData = readLengthPrefixed(reader, isPsb)
-  const imageResources = readImageResources(reader, isPsb)
+  // The colour mode data and image resource section lengths stay 32-bit in
+  // PSB; only the layer/mask and image data sections use the 64-bit form.
+  const colorModeData = readLengthPrefixed(reader, false)
+  const imageResources = readImageResources(reader, false)
   const layerAndMask = readLengthPrefixed(reader, isPsb)
   const layers = readLayers(layerAndMask, isPsb)
 
@@ -82,6 +106,13 @@ function readHeader(reader: ByteReader): PsdHeader {
   }
   if (width < 1 || height < 1) {
     throw new PsdParseError(`Invalid dimensions: ${width}x${height}`)
+  }
+  // A small file can declare a huge canvas; the compositor allocates pixel
+  // buffers from these numbers, so they are bounded before anything uses them.
+  if (width * height > MAX_PIXELS) {
+    throw new PsdParseError(
+      `Document is too large to render: ${width}x${height} exceeds ${MAX_PIXELS} pixels`,
+    )
   }
   if (depth !== 1 && depth !== 8 && depth !== 16 && depth !== 32) {
     throw new PsdParseError(`Unsupported bit depth: ${depth}`)
@@ -227,7 +258,11 @@ function readLayerRecords(reader: ByteReader, count: number, isPsb: boolean): Ps
       }
 
       const key = extra.readSignature()
-      const length = isPsb ? readUint64(extra) : extra.readUint32()
+      // Only the documented large blocks use the 64-bit length in PSB; the
+      // rest, including `luni` and `lsct`, keep the 4-byte form.
+      const length = isPsb && (signature === RESOURCE_SIGNATURE_64 || LARGE_TAGGED_KEYS.has(key))
+        ? readUint64(extra)
+        : extra.readUint32()
       if (length > extra.remaining) {
         break
       }
@@ -307,14 +342,26 @@ function readBlendingRanges(reader: ByteReader): void {
   }
 }
 
+/**
+ * Read a `luni` block into a string.
+ *
+ * The leading count is the number of UTF-16 code units, not bytes, so the
+ * string is `length * 2` bytes long. Reading only `length` bytes truncates
+ * every name with unicode metadata to roughly half its characters.
+ */
 function readUnicodeName(block: Uint8Array): string {
   const sub = new ByteReader(block)
-  const length = sub.readUint32()
-  if (length < 2 || length > sub.remaining) {
+  if (sub.remaining < 4) {
     return ''
   }
 
-  const utf16 = sub.readBytes(length)
+  const units = sub.readUint32()
+  if (units < 1) {
+    return ''
+  }
+
+  const byteLength = Math.min(units * 2, sub.remaining)
+  const utf16 = sub.readBytes(byteLength)
   let out = ''
   for (let i = 0; i + 1 < utf16.length; i += 2) {
     const code = (utf16[i]! << 8) | utf16[i + 1]!
@@ -346,25 +393,30 @@ function readSectionDivider(block: Uint8Array): string {
 /**
  * Blend mode key (a 4-char code such as `norm`) to the numeric id the
  * compositor uses.
+ *
+ * The keys are exactly four bytes, so several carry a trailing space and some
+ * mix case (`hLit` is hard light, `hlit` is not a key at all). They are
+ * matched verbatim; trimming or lower-casing would misread those layers as
+ * normal.
  */
 function blendModeKeyToId(key: string): number {
   const map: Record<string, number> = {
     norm: 0,
-    mul: 1,
+    'mul ': 1,
     scrn: 2,
     over: 3,
     dark: 4,
     lite: 5,
     idiv: 6,
     lbrn: 7,
-    hlit: 8,
-    slit: 9,
+    hLit: 8,
+    sLit: 9,
     diff: 10,
     smud: 11,
-    hue: 12,
-    sat: 13,
+    'hue ': 12,
+    'sat ': 13,
     colr: 14,
-    lum: 15,
+    'lum ': 15,
   }
   return map[key] ?? 0
 }

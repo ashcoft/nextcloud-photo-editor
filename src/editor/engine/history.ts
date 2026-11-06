@@ -57,8 +57,14 @@ export class EditHistory {
     this.entries = [cloneEditState(initial)]
   }
 
+  /**
+   * The current state, as an independent copy.
+   *
+   * Returning the stored entry directly would let a caller mutate a snapshot
+   * in place, silently changing what undo and redo would restore.
+   */
   get present(): EditState {
-    return this.entries[this.index]!
+    return cloneEditState(this.entries[this.index]!)
   }
 
   get canUndo(): boolean {

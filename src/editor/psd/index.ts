@@ -4,12 +4,13 @@
  */
 
 export { parsePsd, PsdParseError } from './parser'
-export { decodeChannel, decodePackBits, Compression, PsdDecodeError } from './decode'
+export { decodeChannel, decodePackBits, undoPrediction, Compression, PsdDecodeError } from './decode'
 export {
   compositeDocument,
+  headerSummary,
+  isRenderable,
   scaleCanvas,
   summarizeLayers,
-  headerSummary,
   type CompositeOptions,
   type LayerSummary,
 } from './composite'

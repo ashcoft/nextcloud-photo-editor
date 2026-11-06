@@ -61,24 +61,37 @@ class RecentImagesService
     private function collect(Folder $folder): array
     {
         $results = [];
+        $seen = [];
 
-        try {
-            $nodes = $folder->searchByMime('image');
-        } catch (\Throwable $e) {
-            $this->logger->warning('Photo Editor: could not list images', [
-                'exception' => $e,
-            ]);
-            return [];
-        }
-
-        foreach ($nodes as $node) {
-            if (!$node instanceof File) {
-                continue;
+        // PSD files can keep either the canonical or an aliased MIME type
+        // depending on when they were uploaded, and those live in different
+        // MIME groups, so both are searched and de-duplicated by id.
+        foreach (['image', 'application'] as $mimePart) {
+            $nodes = [];
+            try {
+                $nodes = $folder->searchByMime($mimePart);
+            } catch (\Throwable $e) {
+                $this->logger->warning('Photo Editor: could not list images', [
+                    'mimePart' => $mimePart,
+                    'exception' => $e,
+                ]);
             }
 
-            $entry = $this->describe($node, $folder);
-            if ($entry !== null) {
-                $results[] = $entry;
+            foreach ($nodes as $node) {
+                if (!$node instanceof File) {
+                    continue;
+                }
+
+                $id = (int) $node->getId();
+                if (isset($seen[$id])) {
+                    continue;
+                }
+                $seen[$id] = true;
+
+                $entry = $this->describe($node, $folder);
+                if ($entry !== null) {
+                    $results[] = $entry;
+                }
             }
         }
 
@@ -91,6 +104,12 @@ class RecentImagesService
     private function describe(File $file, Folder $root): ?array
     {
         if (!Application::isSupportedFile($file->getName())) {
+            return null;
+        }
+
+        // A file the editor will refuse to open must not be listed, or the
+        // card would lead straight to a 413.
+        if ($file->getSize() > $this->fileService->getMaxFileSize()) {
             return null;
         }
 

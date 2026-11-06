@@ -7,29 +7,28 @@ import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 
 /**
- * Render and upload a thumbnail for an image so the Files app can show it.
+ * Upload a thumbnail for the file the editor has open.
  *
- * `etag` is the version of the file the editor rendered. The server stores the
- * image under it and rejects uploads for a version the file has already moved
- * past, so an edit made while the image was open cannot end up as the preview
- * of the newer version.
+ * `etag` is the version of the file the thumbnail was rendered from. The
+ * server stores the image under it and rejects uploads for a version the file
+ * has already moved past, so an edit made while the image was open cannot end
+ * up as the preview of the newer version.
  *
  * Failures are swallowed: thumbnails are a progressive enhancement and must
  * never surface an error to the user.
  */
 export async function uploadThumbnail(
-  fileId: number | string,
   etag: string | undefined,
   dataUrl: string | null,
-  options: { signal?: AbortSignal } = {},
+  options: { fileId?: number | string; signal?: AbortSignal } = {},
 ): Promise<void> {
-  if (!dataUrl || options.signal?.aborted) {
+  if (!dataUrl || options.signal?.aborted || options.fileId === undefined) {
     return
   }
 
   try {
     await axios.post(
-      generateUrl('/apps/photo_editor/api/thumbnail/{fileId}', { fileId: String(fileId) }),
+      generateUrl('/apps/photo_editor/api/thumbnail/{fileId}', { fileId: String(options.fileId) }),
       { image: dataUrl, etag: etag ?? '' },
       { signal: options.signal },
     )

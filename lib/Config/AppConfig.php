@@ -84,7 +84,10 @@ class AppConfig
 
     public function setMaxFileSizeMb(string $megabytes): void
     {
-        $value = (int) $megabytes;
+        // Reject a value that is not wholly numeric: a cast would accept
+        // "50abc" as 50 and silently configure a limit the admin did not ask
+        // for.
+        $value = ctype_digit(trim($megabytes)) ? (int) $megabytes : 0;
         if ($value < self::MIN_MAX_SIZE_MB || $value > self::MAX_MAX_SIZE_MB) {
             $value = self::DEFAULT_MAX_SIZE_MB;
         }

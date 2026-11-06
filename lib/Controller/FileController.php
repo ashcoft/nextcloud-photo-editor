@@ -35,6 +35,14 @@ class FileController extends Controller
     private const ERR_NOT_A_FILE = 'Not a file';
     private const ERR_INTERNAL_SERVER_ERROR = 'Internal server error';
 
+    /**
+     * Largest edge a saved image may have.
+     *
+     * The editor refuses to resize past this too; a save beyond it would be
+     * accepted here but then fail on every later edit, so the limit is shared.
+     */
+    private const MAX_IMAGE_EDGE = 16384;
+
     public function __construct(
         string $appName,
         IRequest $request,
@@ -169,11 +177,11 @@ class FileController extends Controller
         try {
             $file = $this->fileService->resolveFile($fileId);
 
-            if (!Application::isSupportedFile($file->getName())) {
-                return new DataResponse(
-                    ['error' => 'Unsupported file type.'],
-                    Http::STATUS_UNSUPPORTED_MEDIA_TYPE,
-                );
+            // Same checks as load(), so the download cannot hand back a file
+            // the client was told it could not open.
+            $errorResponse = $this->validateFile($file, $fileId);
+            if ($errorResponse !== null) {
+                return $errorResponse;
             }
 
             $stream = $file->fopen('r');
@@ -248,7 +256,7 @@ class FileController extends Controller
                 return new DataResponse(['error' => 'Missing image data'], Http::STATUS_BAD_REQUEST);
             }
 
-            $decoded = $this->decodeImageDataUrl($dataUrl);
+            $decoded = $this->decodeImageDataUrl($dataUrl, $file->getName());
             if ($decoded === null) {
                 return new DataResponse(['error' => 'Invalid image data'], Http::STATUS_BAD_REQUEST);
             }
@@ -401,15 +409,24 @@ class FileController extends Controller
     /**
      * Decode a base64 image data URL into raw bytes.
      *
-     * Only the raster formats the editor writes are accepted, and the bytes
-     * must decode to a real image, so a malformed upload cannot replace a file
-     * with something nothing can read.
+     * The payload must decode to a real image and the format must match the
+     * file's extension: a PNG header with no pixel data would otherwise
+     * replace a readable file with a broken one, and a payload whose type does
+     * not match the name would leave the extension lying about the contents.
+     *
+     * The declared data-URL type is only a hint; the bytes are what is checked.
      *
      * @return array{binary: string, mimeType: string}|null
      */
-    private function decodeImageDataUrl(string $dataUrl): ?array
+    private function decodeImageDataUrl(string $dataUrl, string $fileName): ?array
     {
-        if (!preg_match('#^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $m)) {
+        if (!preg_match('#^data:image/(png|jpeg|webp|gif|bmp|avif);base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $m)) {
+            return null;
+        }
+
+        // Bound the encoded payload before decoding: base64 expands by 4/3, so
+        // a huge string would be allocated in full before any size check ran.
+        if (strlen($m[2]) > (int) ceil($this->fileService->getMaxFileSize() * 4 / 3) + 8) {
             return null;
         }
 
@@ -423,10 +440,60 @@ class FileController extends Controller
             return null;
         }
 
-        if ($info[0] > 8192 || $info[1] > 8192) {
+        if ($info[0] > self::MAX_IMAGE_EDGE || $info[1] > self::MAX_IMAGE_EDGE) {
             return null;
         }
 
-        return ['binary' => $binary, 'mimeType' => 'image/' . $m[1]];
+        $mimeType = $info['mime'] ?? '';
+        if (!$this->mimeMatchesExtension($mimeType, $fileName)) {
+            return null;
+        }
+
+        // getimagesizefromstring() reads only the header, so a truncated file
+        // with a valid IHDR would pass. Decode the pixels as the thumbnail
+        // validator does before letting it replace a working file.
+        if (!$this->isDecodableImage($binary)) {
+            return null;
+        }
+
+        return ['binary' => $binary, 'mimeType' => $mimeType];
+    }
+
+    /**
+     * Whether a decoded image's type matches the extension of the target file.
+     */
+    private function mimeMatchesExtension(string $mimeType, string $fileName): bool
+    {
+        $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+        $expected = match ($extension) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            default => '',
+        };
+
+        return $expected !== '' && $mimeType === $expected;
+    }
+
+    /**
+     * Whether the bytes decode to an actual bitmap.
+     */
+    private function isDecodableImage(string $binary): bool
+    {
+        if (!function_exists('imagecreatefromstring')) {
+            // Without a decoder the header checks alone would accept a
+            // truncated image; refuse rather than write one over the original.
+            $this->logger->warning('Photo Editor: refusing save, no image decoder available');
+            return false;
+        }
+
+        $image = @imagecreatefromstring($binary);
+        if ($image === false) {
+            return false;
+        }
+
+        imagedestroy($image);
+
+        return true;
     }
 }

@@ -23,11 +23,17 @@ export interface RenderResult {
  * caller can render repeatedly (for example while dragging a slider).
  */
 export function renderEdit(source: HTMLCanvasElement, state: EditState): RenderResult {
+  const needsPixels = !isNeutral(state.adjustments) || hasActiveFilter(state.filters)
+
+  // A transform is free to hand back the canvas it was given — a resize whose
+  // target size already matches, or a crop that covers the whole image. Since
+  // the pixel pass below writes in place, the result is copied before it is
+  // written to, or the edit would land in the caller's source and every later
+  // undo would restore already-modified pixels.
   const transformed = isIdentityTransform(state.transform)
     ? copyCanvas(source)
-    : applyTransform(source, state.transform)
+    : ensureOwned(applyTransform(source, state.transform), source)
 
-  const needsPixels = !isNeutral(state.adjustments) || hasActiveFilter(state.filters)
   if (!needsPixels) {
     return { canvas: transformed, modified: !isIdentityTransform(state.transform) }
   }
@@ -48,6 +54,16 @@ export function renderEdit(source: HTMLCanvasElement, state: EditState): RenderR
 
   context.putImageData(image, 0, 0)
   return { canvas: transformed, modified: true }
+}
+
+/**
+ * Return a canvas that is safe to write to.
+ *
+ * The transforms may return their input unchanged; this copies in that case so
+ * the caller never receives the source it passed in.
+ */
+function ensureOwned(canvas: HTMLCanvasElement, source: HTMLCanvasElement): HTMLCanvasElement {
+  return canvas === source ? copyCanvas(source) : canvas
 }
 
 /**

@@ -22,8 +22,9 @@ import { fetchFile } from '../utils/fetchFile'
 import { saveFile } from '../utils/saveFile'
 import { renderThumbnail } from '../utils/thumbnail'
 import { uploadThumbnail } from '../utils/thumbnailUpload'
+import { copyCanvas } from '../editor/engine'
 import { canvasToDataUrl } from '../editor/io/decode'
-import { extensionOf, mimeForExtension } from '../editor/mimeTypes'
+import { extensionOf, isServerEncodable, mimeForExtension } from '../editor/mimeTypes'
 import type { LoadResponse } from '../types/loadResponse'
 
 export type EditorStatus = 'idle' | 'loading' | 'ready' | 'error'
@@ -180,17 +181,14 @@ export function useEditor(fileId: string | null) {
     return canvasToDataUrl(canvas, mimeForExtension(extension))
   }
 
-  async function refreshThumbnail(): Promise<void> {
-    const currentMeta = meta.value
-    const canvas = previewCanvas.value
-    if (currentMeta === null || canvas === null) {
-      return
-    }
-
-    await uploadThumbnail(currentMeta.id, currentMeta.etag, renderThumbnail(canvas))
-  }
-
-  /** Save the current view back to the file. */
+  /**
+   * Save the current view back to the file.
+   *
+   * The canvas is captured before the request is sent, so an edit made while
+   * the save is in flight cannot be uploaded under the version that was saved.
+   * `dirty` is only cleared when the state is still the one that was saved;
+   * otherwise the newer edit stays marked as unsaved.
+   */
   async function save(): Promise<boolean> {
     const currentMeta = meta.value
     const canvas = previewCanvas.value
@@ -203,11 +201,24 @@ export function useEditor(fileId: string | null) {
       return false
     }
 
+    // Browsers only encode PNG and JPEG reliably; GIF, BMP and AVIF are
+    // decoded but re-encode as PNG, which the server would then write under the
+    // original extension. Those formats are exported instead of saved.
+    const extension = extensionOf(currentMeta.name)
+    if (!isServerEncodable(extension)) {
+      statusMessage.value = `This file cannot be saved as ${extension.toUpperCase()}. Use Export instead.`
+      return false
+    }
+
     saving.value = true
     statusMessage.value = 'Saving…'
 
-    const dataUrl = canvasToDataUrl(canvas, mimeForExtension(extensionOf(currentMeta.name)))
-    const result = await saveFile(currentMeta.id, currentMeta.etag, dataUrl)
+    const savedVersion = historyVersion.value
+    const savedEtag = currentMeta.etag
+    const savedCanvas = copyCanvas(canvas)
+    const dataUrl = canvasToDataUrl(savedCanvas, mimeForExtension(extension))
+
+    const result = await saveFile(currentMeta.id, savedEtag, dataUrl)
     saving.value = false
 
     if (!result.ok) {
@@ -218,10 +229,30 @@ export function useEditor(fileId: string | null) {
     if (result.etag) {
       meta.value = { ...currentMeta, etag: result.etag }
     }
+
+    // A newer edit arrived while the request was in flight; it is not what was
+    // written, so it stays unsaved and is not used for the thumbnail.
+    if (historyVersion.value !== savedVersion) {
+      statusMessage.value = 'Saved. You have newer changes that are not saved yet.'
+      return true
+    }
+
     dirty.value = false
     statusMessage.value = 'Saved'
-    void refreshThumbnail()
+    void uploadThumbnail(result.etag ?? savedEtag, renderThumbnail(savedCanvas), {
+      fileId: currentMeta.id,
+    })
     return true
+  }
+
+  async function refreshThumbnail(): Promise<void> {
+    const currentMeta = meta.value
+    const canvas = previewCanvas.value
+    if (currentMeta === null || canvas === null) {
+      return
+    }
+
+    await uploadThumbnail(currentMeta.etag, renderThumbnail(canvas), { fileId: currentMeta.id })
   }
 
   /** Load the file and prepare the editor. */

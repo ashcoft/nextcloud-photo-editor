@@ -17,6 +17,7 @@ export {
   isPsdMime,
   isRasterExtension,
   isRasterMime,
+  isServerEncodable,
   isSupportedExtension,
   isSupportedMime,
   mimeForExtension,

@@ -183,7 +183,19 @@ export function rotateCanvas(source: HTMLCanvasElement, degrees: number): HTMLCa
 }
 
 /**
+ * Largest edge the editor will resize to, in pixels.
+ *
+ * The resize controls take raw user input, and a canvas is allocated at the
+ * requested size immediately, so the value is bounded here rather than left to
+ * fail when the browser cannot allocate it.
+ */
+export const MAX_RESIZE_EDGE = 16384
+
+/**
  * Resize a canvas, preserving the aspect ratio when only one axis is given.
+ *
+ * The target is clamped to `MAX_RESIZE_EDGE` on each edge, so an accidental
+ * extra digit cannot allocate a canvas the browser will refuse.
  */
 export function resizeCanvas(
   source: HTMLCanvasElement,
@@ -195,8 +207,8 @@ export function resizeCanvas(
   let targetWidth = width ?? (height !== null ? Math.round(height * aspect) : source.width)
   let targetHeight = height ?? (width !== null ? Math.round(width / aspect) : source.height)
 
-  targetWidth = Math.max(1, Math.round(targetWidth))
-  targetHeight = Math.max(1, Math.round(targetHeight))
+  targetWidth = clampEdge(targetWidth)
+  targetHeight = clampEdge(targetHeight)
 
   if (targetWidth === source.width && targetHeight === source.height) {
     return source
@@ -212,4 +224,11 @@ export function resizeCanvas(
     context.drawImage(source, 0, 0, targetWidth, targetHeight)
   }
   return canvas
+}
+
+function clampEdge(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 1
+  }
+  return Math.min(MAX_RESIZE_EDGE, Math.max(1, Math.round(value)))
 }

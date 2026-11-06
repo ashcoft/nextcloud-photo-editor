@@ -136,14 +136,18 @@ export function decodeLatin1(bytes: Uint8Array): string {
 }
 
 /**
- * Inflate raw deflate data.
+ * Inflate raw deflate data, bounded to `maxBytes`.
  *
  * PSD layer channels compressed with ZIP use zlib-wrapped deflate; the browser
  * exposes an inflate through `DecompressionStream('deflate')`, which handles
- * the zlib header. Returns null when the platform has no decompressor or the
- * stream is not valid deflate.
+ * the zlib header.
+ *
+ * The stream is read incrementally and abandoned once it exceeds `maxBytes`,
+ * so a small, highly compressible payload cannot expand to gigabytes before
+ * the caller checks the length. Returns null when the platform has no
+ * decompressor, or the stream is not valid deflate.
  */
-export async function inflate(data: Uint8Array): Promise<Uint8Array | null> {
+export async function inflate(data: Uint8Array, maxBytes: number): Promise<Uint8Array | null> {
   if (typeof DecompressionStream === 'undefined') {
     return null
   }
@@ -152,8 +156,36 @@ export async function inflate(data: Uint8Array): Promise<Uint8Array | null> {
     // Copy into a fresh buffer: the stream detaches the input it is given.
     const stream = new Blob([new Uint8Array(data)]).stream()
     const inflated = stream.pipeThrough(new DecompressionStream('deflate'))
-    const buffer = await new Response(inflated).arrayBuffer()
-    return new Uint8Array(buffer)
+    const reader = inflated.getReader()
+
+    const chunks: Uint8Array[] = []
+    let total = 0
+
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) {
+        break
+      }
+
+      const remaining = maxBytes - total
+      if (remaining <= 0) {
+        await reader.cancel()
+        break
+      }
+
+      const chunk = value as Uint8Array
+      chunks.push(chunk.length > remaining ? chunk.subarray(0, remaining) : chunk)
+      total += Math.min(chunk.length, remaining)
+    }
+
+    const out = new Uint8Array(total)
+    let offset = 0
+    for (const chunk of chunks) {
+      out.set(chunk, offset)
+      offset += chunk.length
+    }
+
+    return out
   } catch {
     return null
   }

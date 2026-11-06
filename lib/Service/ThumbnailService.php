@@ -114,7 +114,17 @@ class ThumbnailService
             $folder->newFile($name, $binary);
 
             // Only once the replacement is safely stored: a new etag means a
-            // new file name, so drop the superseded versions.
+            // new file name, so drop the superseded versions. The file's etag
+            // is re-read first: an upload that started on an older version can
+            // reach this point after a newer one has already stored its image,
+            // and deleting then would remove the current thumbnail.
+            if ($file->getEtag() !== $this->etagFor($name)) {
+                $this->logger->info('Photo Editor: superseded thumbnail upload, keeping the newer image', [
+                    'fileId' => $file->getId(),
+                ]);
+                return self::STORED;
+            }
+
             foreach ($folder->getDirectoryListing() as $existing) {
                 if ($existing->getName() !== $name) {
                     $existing->delete();
@@ -180,6 +190,13 @@ class ThumbnailService
     public function decodePngDataUrl(string $dataUrl): ?array
     {
         if (!preg_match('#^data:image/png;base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $matches)) {
+            return null;
+        }
+
+        // Bound the encoded string before decoding it: base64 expands by 4/3,
+        // so an oversized payload would otherwise be allocated in full before
+        // the decoded-size check below could reject it.
+        if (strlen($matches[1]) > (int) ceil(self::MAX_DECODED_BYTES * 4 / 3) + 8) {
             return null;
         }
 
@@ -304,5 +321,17 @@ class ThumbnailService
     private function thumbnailName(File $file): string
     {
         return $file->getEtag() . '.png';
+    }
+
+    /**
+     * The etag a thumbnail file name was derived from.
+     *
+     * The name is `<etag>.png`, so the etag is recovered by dropping the
+     * extension. Used to tell whether the file has moved on since the
+     * thumbnail was named.
+     */
+    private function etagFor(string $thumbnailName): string
+    {
+        return preg_replace('/\.png$/', '', $thumbnailName) ?? '';
     }
 }

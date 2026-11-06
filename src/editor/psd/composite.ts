@@ -16,7 +16,8 @@
  * Neither path mutates the source document.
  */
 
-import { Compression, decodeChannel } from './decode'
+import { inflate } from './binary'
+import { Compression, decodeChannel, undoPrediction } from './decode'
 import {
   ColorMode,
   type PsdDocument,
@@ -64,7 +65,7 @@ export async function compositeDocument(
 ): Promise<HTMLCanvasElement> {
   const preferMerged = options.preferMerged !== false
 
-  if (preferMerged && document.imageData.length > 0) {
+  if (preferMerged && document.imageData.length > 0 && isRenderable(document.header)) {
     const merged = await renderMerged(document)
     if (merged !== null) {
       return scaleCanvas(merged, options.maxWidth)
@@ -73,6 +74,18 @@ export async function compositeDocument(
 
   const canvas = await renderLayers(document)
   return scaleCanvas(canvas, options.maxWidth)
+}
+
+/**
+ * Whether the compositor can turn this document's channels into RGB.
+ *
+ * The layer path treats the first three channels as R, G and B, which is only
+ * true for RGB and (via replication) grayscale. CMYK, Lab and indexed
+ * documents need a conversion the compositor does not implement, so they are
+ * reported as unrenderable rather than drawn with wrong colours.
+ */
+export function isRenderable(header: PsdHeader): boolean {
+  return header.colorMode === ColorMode.RGB || header.colorMode === ColorMode.GRAYSCALE
 }
 
 function createCanvas(width: number, height: number): HTMLCanvasElement {
@@ -85,16 +98,20 @@ function createCanvas(width: number, height: number): HTMLCanvasElement {
 /**
  * Render the merged composite channels into a canvas.
  *
- * Returns null when the channels cannot be turned into RGB (an unsupported
- * colour mode, or channels the reader did not capture).
+ * Returns null when the channels cannot be turned into RGB.
  */
 async function renderMerged(document: PsdDocument): Promise<HTMLCanvasElement | null> {
   const { header } = document
-  if (header.colorMode !== ColorMode.RGB && header.colorMode !== ColorMode.GRAYSCALE) {
+  if (!isRenderable(header)) {
     return null
   }
 
   const { width, height } = header
+  const planes = await decodeCompositePlanes(document)
+  if (planes === null) {
+    return null
+  }
+
   const canvas = createCanvas(width, height)
   const context = canvas.getContext('2d')
   if (context === null) {
@@ -102,24 +119,22 @@ async function renderMerged(document: PsdDocument): Promise<HTMLCanvasElement | 
   }
 
   const image = context.createImageData(width, height)
-  const red = await readPlane(document, 0, width, height)
-  const green = await readPlane(document, 1, width, height)
-  const blue = await readPlane(document, 2, width, height)
-  // Only ask for alpha when the header says the merged image carries one;
-  // otherwise the last channel is the blue plane, not transparency.
-  const alpha = hasAlphaChannel(document)
-    ? await readPlane(document, -1, width, height)
-    : null
+  const red = planes[0]
+  const green = planes[1]
+  const blue = planes[2]
+  const alpha = hasAlphaChannel(document) ? planes[3] : undefined
 
-  if (red === null) {
+  if (red === undefined) {
     return null
   }
 
+  const isGray = header.colorMode === ColorMode.GRAYSCALE
+
   for (let i = 0; i < width * height; i += 1) {
     const r = red[i]!
-    const g = header.colorMode === ColorMode.GRAYSCALE ? r : (green?.[i] ?? r)
-    const b = header.colorMode === ColorMode.GRAYSCALE ? r : (blue?.[i] ?? r)
-    const a = alpha === null ? 255 : alpha[i]!
+    const g = isGray ? r : (green?.[i] ?? r)
+    const b = isGray ? r : (blue?.[i] ?? r)
+    const a = alpha === undefined ? 255 : alpha[i]!
 
     const offset = i * 4
     image.data[offset] = r
@@ -130,6 +145,180 @@ async function renderMerged(document: PsdDocument): Promise<HTMLCanvasElement | 
 
   context.putImageData(image, 0, 0)
   return canvas
+}
+
+/**
+ * Decode every channel of the merged Image Data Section.
+ *
+ * All channels share one 2-byte compression tag at the start of the section,
+ * but the three compression schemes lay the channels out differently:
+ *
+ *  - Raw: each channel is a fixed-size block, one after another.
+ *  - ZIP: one deflate stream holds every channel's samples back to back.
+ *  - RLE: a byte count for every row of every channel comes first, and only
+ *    then the packed rows, so the counts must be read as one table.
+ *
+ * @returns One plane per channel in file order, or null when the section
+ *   cannot be decoded.
+ */
+async function decodeCompositePlanes(document: PsdDocument): Promise<Uint8Array[] | null> {
+  const section = document.imageData
+  if (section.length < 2) {
+    return null
+  }
+
+  const { width, height, depth, channels, version } = document.header
+  const isPsb = version === 2
+  const compression = (section[0]! << 8) | section[1]!
+  const body = section.subarray(2)
+  const bytesPerSample = depth === 1 ? 1 : depth / 8
+  const planeSize = width * height
+
+  try {
+    if (compression === Compression.RLE) {
+      return await decodeCompositeRle(body, width, height, depth, channels, isPsb)
+    }
+
+    if (compression === Compression.ZIP || compression === Compression.ZIP_PREDICTION) {
+      return await decodeCompositeZip(
+        body,
+        width,
+        height,
+        depth,
+        channels,
+        compression,
+        isPsb,
+      )
+    }
+
+    if (compression !== Compression.RAW) {
+      return null
+    }
+
+    const planes: Uint8Array[] = []
+    let offset = 0
+
+    for (let c = 0; c < channels; c += 1) {
+      const length = planeSize * bytesPerSample
+      const channelData = concat(
+        Uint8Array.from([0, Compression.RAW]),
+        body.subarray(offset, Math.min(body.length, offset + length)),
+      )
+      offset += length
+      planes.push(await decodeChannel(channelData, width, height, depth, isPsb))
+    }
+
+    return planes
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Decode a ZIP-compressed merged image.
+ *
+ * The section holds a single deflate stream containing every channel's samples
+ * in order, so it is inflated once and then split; inflating it per channel
+ * would fail because each channel after the first has no stream header.
+ */
+async function decodeCompositeZip(
+  body: Uint8Array,
+  width: number,
+  height: number,
+  depth: number,
+  channels: number,
+  compression: number,
+  isPsb: boolean,
+): Promise<Uint8Array[]> {
+  const bytesPerSample = depth === 1 ? 1 : depth / 8
+  const planeSize = width * height * bytesPerSample
+  const expected = planeSize * channels
+
+  const inflated = await inflate(body, expected)
+  if (inflated === null) {
+    throw new Error('Could not inflate the merged image')
+  }
+
+  const planes: Uint8Array[] = []
+
+  for (let c = 0; c < channels; c += 1) {
+    const start = c * planeSize
+    const plane = inflated.subarray(start, Math.min(inflated.length, start + planeSize))
+
+    // Prediction is applied per channel before the planes are concatenated, so
+    // each plane is undone on its own.
+    const view = Uint8Array.from(plane)
+    const samples = compression === Compression.ZIP_PREDICTION
+      ? undoPrediction(view, width, height, depth)
+      : view
+
+    planes.push(
+      await decodeChannel(
+        concat(
+          Uint8Array.from([(compression >> 8) & 0xff, compression & 0xff]),
+          samples,
+        ),
+        width,
+        height,
+        depth,
+        isPsb,
+      ),
+    )
+  }
+
+  return planes
+}
+
+/**
+ * Decode an RLE-compressed merged image.
+ *
+ * Photoshop writes the row-count table for all channels before the packed rows
+ * begin, so the counts are read in one pass and the rows are then decoded
+ * channel by channel from the position that table ends at.
+ */
+async function decodeCompositeRle(
+  body: Uint8Array,
+  width: number,
+  height: number,
+  depth: number,
+  channels: number,
+  isPsb: boolean,
+): Promise<Uint8Array[]> {
+  const countSize = isPsb ? 4 : 2
+  const totalRows = channels * height
+
+  if (body.length < totalRows * countSize) {
+    throw new Error('RLE row-count table is truncated')
+  }
+
+  const counts = new Uint32Array(totalRows)
+  let offset = 0
+  for (let i = 0; i < totalRows; i += 1) {
+    counts[i] = isPsb
+      ? ((body[offset]! << 24) | (body[offset + 1]! << 16) | (body[offset + 2]! << 8) | body[offset + 3]!) >>> 0
+      : (body[offset]! << 8) | body[offset + 1]!
+    offset += countSize
+  }
+
+  const planes: Uint8Array[] = []
+
+  for (let c = 0; c < channels; c += 1) {
+    let packed = 0
+    for (let row = 0; row < height; row += 1) {
+      packed += counts[c * height + row]!
+    }
+
+    const end = Math.min(body.length, offset + packed)
+    const channelData = concat(
+      Uint8Array.from([0, Compression.RLE]),
+      body.subarray(offset, end),
+    )
+    offset = end
+
+    planes.push(await decodeChannel(channelData, width, height, depth, isPsb))
+  }
+
+  return planes
 }
 
 /**
@@ -153,113 +342,6 @@ function hasAlphaChannel(document: PsdDocument): boolean {
   }
 }
 
-/**
- * Decode one channel of the merged Image Data Section.
- *
- * Every channel in that section shares a single 2-byte compression tag at the
- * start, followed by the channel data in order. The reader walks the channels
- * to locate the requested one; only that channel is fully decoded.
- */
-async function readPlane(
-  document: PsdDocument,
-  channelId: number,
-  width: number,
-  height: number,
-): Promise<Uint8Array | null> {
-  const section = document.imageData
-  if (section.length < 2) {
-    return null
-  }
-
-  const compression = (section[0]! << 8) | section[1]!
-  const body = section.subarray(2)
-
-  const totalChannels = document.header.channels
-  const wanted = channelId === -1 ? totalChannels - 1 : channelId
-  if (wanted < 0 || wanted >= totalChannels) {
-    return null
-  }
-
-  // The decoder needs a per-channel view. For raw and RLE the channel length is
-  // derivable, so the body can be split without decoding the other channels.
-  const channelViews = splitCompositeChannels(
-    body,
-    compression,
-    width,
-    height,
-    totalChannels,
-    document.header.depth,
-    document.header.version === 2,
-  )
-  const view = channelViews[wanted]
-  if (view === undefined || view.length === 0) {
-    return null
-  }
-
-  try {
-    return await decodeChannel(view, width, height, document.header.depth, document.header.version === 2)
-  } catch {
-    return null
-  }
-}
-
-/**
- * Split the merged Image Data Section into per-channel byte ranges.
- *
- * Each returned range includes its own 2-byte compression tag, which is what
- * `decodeChannel` expects. Raw and RLE channels have a computable length; a
- * ZIP-compressed section cannot be split without inflating it, so only the
- * first channel (whose length is the remainder) is returned in that case.
- */
-function splitCompositeChannels(
-  body: Uint8Array,
-  compression: number,
-  width: number,
-  height: number,
-  channels: number,
-  depth: number,
-  isPsb: boolean,
-): Uint8Array[] {
-  const tag = (value: number): Uint8Array => Uint8Array.from([(value >> 8) & 0xff, value & 0xff])
-
-  if (compression === Compression.ZIP || compression === Compression.ZIP_PREDICTION) {
-    // Not splittable without inflating; the layer path is used instead.
-    return []
-  }
-
-  const bytesPerSample = depth === 1 ? 1 : depth / 8
-  const views: Uint8Array[] = []
-  let offset = 0
-
-  for (let c = 0; c < channels; c += 1) {
-    if (compression === Compression.RAW) {
-      const length = width * height * bytesPerSample
-      const end = Math.min(body.length, offset + length)
-      views.push(concat(tag(compression), body.subarray(offset, end)))
-      offset = end
-      continue
-    }
-
-    // RLE: a run of per-row byte counts precedes the packed rows.
-    const rowCountSize = isPsb ? 4 : 2
-    let cursor = offset
-    let packed = 0
-    for (let row = 0; row < height && cursor + rowCountSize <= body.length; row += 1) {
-      const count = isPsb
-        ? (body[cursor]! << 24) | (body[cursor + 1]! << 16) | (body[cursor + 2]! << 8) | body[cursor + 3]!
-        : (body[cursor]! << 8) | body[cursor + 1]!
-      packed += count
-      cursor += rowCountSize
-    }
-
-    const end = Math.min(body.length, cursor + packed)
-    views.push(concat(tag(compression), body.subarray(offset, end)))
-    offset = end
-  }
-
-  return views
-}
-
 function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
   const out = new Uint8Array(a.length + b.length)
   out.set(a, 0)
@@ -278,22 +360,18 @@ async function renderLayers(document: PsdDocument): Promise<HTMLCanvasElement> {
     return canvas
   }
 
-  const flat = flatten(document.layers)
+  const flat = flattenDrawable(document.layers, true, 1)
   // Photoshop stores the bottom-most layer first; the parsed tree is
   // top-to-bottom, so draw it in reverse.
   for (let i = flat.length - 1; i >= 0; i -= 1) {
-    const layer = flat[i]!
-    if (!isDrawable(layer)) {
-      continue
-    }
-
+    const { layer, opacity } = flat[i]!
     const layerCanvas = await renderLayer(document, layer)
     if (layerCanvas === null) {
       continue
     }
 
     context.save()
-    context.globalAlpha = layer.opacity / 255
+    context.globalAlpha = opacity
     const mode = blendModeName(layer.blendMode)
     context.globalCompositeOperation = CANVAS_BLEND_MODES.has(mode)
       ? (mode as GlobalCompositeOperation)
@@ -305,15 +383,36 @@ async function renderLayers(document: PsdDocument): Promise<HTMLCanvasElement> {
   return canvas
 }
 
-function flatten(layers: PsdLayer[]): PsdLayer[] {
-  const out: PsdLayer[] = []
+interface FlatLayer {
+  layer: PsdLayer
+  /** The layer's opacity multiplied by every enclosing group's. */
+  opacity: number
+}
+
+/**
+ * Flatten a layer tree into the draw order, carrying inherited state.
+ *
+ * A hidden group hides its children, and a group's opacity multiplies into
+ * theirs, so both are accumulated on the way down. A child of a hidden group
+ * must not be drawn on its own.
+ */
+function flattenDrawable(layers: PsdLayer[], visible: boolean, opacity: number): FlatLayer[] {
+  const out: FlatLayer[] = []
+
   for (const layer of layers) {
+    const layerVisible = visible && layer.visible
+    const layerOpacity = opacity * (layer.opacity / 255)
+
     if (layer.children.length > 0) {
-      out.push(...flatten(layer.children))
-    } else {
-      out.push(layer)
+      out.push(...flattenDrawable(layer.children, layerVisible, layerOpacity))
+      continue
+    }
+
+    if (layerVisible) {
+      out.push({ layer, opacity: layerOpacity })
     }
   }
+
   return out
 }
 

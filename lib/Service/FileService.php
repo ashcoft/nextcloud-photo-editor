@@ -113,9 +113,10 @@ class FileService
     /**
      * Whether the editor can write this file back.
      *
-     * A PSD cannot be re-encoded, so a save of a PSD would silently flatten
-     * the document. Such a file stays read-only in the editor and the client
-     * offers an export instead.
+     * A PSD cannot be re-encoded, and a browser canvas only encodes PNG and
+     * JPEG, so a save of anything else would silently replace the file with a
+     * different format under its original name. Those files stay read-only in
+     * the editor and the client offers an export instead.
      */
     public function canSave(File $file): bool
     {
@@ -123,7 +124,7 @@ class FileService
             return false;
         }
 
-        return Application::isEditableFile($file->getName());
+        return Application::isSaveableFile($file->getName());
     }
 
     /**

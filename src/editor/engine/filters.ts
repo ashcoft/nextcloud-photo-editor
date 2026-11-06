@@ -7,7 +7,10 @@
  * Whole-image filters applied after the colour adjustments.
  *
  * Each filter is a small, self-contained pixel operation. They are applied in
- * the order the user enables them and can be combined freely.
+ * a fixed order — auto contrast, blur, sharpen, then the per-pixel colour
+ * filters — so a given set of enabled filters always renders the same result.
+ * A user-chosen order would have to be stored in the edit state; it is not,
+ * so the order is deliberately fixed rather than implied.
  */
 export const FILTERS = [
   'grayscale',
@@ -104,6 +107,10 @@ export function invert(image: ImageData): void {
 /**
  * Stretch each channel so the darkest sample maps to 0 and the brightest to
  * 255.
+ *
+ * A channel with no variation has no range to stretch; it is left untouched
+ * rather than mapped to black, which is what a plain `(v - lo) / span` would
+ * do for a solid-colour image.
  */
 export function autoContrast(image: ImageData): void {
   const data = image.data
@@ -122,9 +129,10 @@ export function autoContrast(image: ImageData): void {
   for (let c = 0; c < 3; c += 1) {
     const lo = min[c]!
     const hi = max[c]!
-    const span = hi - lo || 1
+    const span = hi - lo
+
     for (let i = 0; i < 256; i += 1) {
-      lut[c]![i] = clamp255(((i - lo) / span) * 255)
+      lut[c]![i] = span === 0 ? i : clamp255(((i - lo) / span) * 255)
     }
   }
 

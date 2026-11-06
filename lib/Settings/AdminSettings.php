@@ -38,8 +38,14 @@ class AdminSettings implements IDelegatedSettings
     #[\Override]
     public function getAuthorizedAppConfig(): array
     {
+        // Only the keys this settings form writes are delegated. A wildcard
+        // would let a delegated admin change every future app-config key.
         return [
-            AppConfig::APP_CONFIG_KEY => ['/.*/'],
+            AppConfig::APP_CONFIG_KEY => [
+                '^Theme$',
+                '^Previews$',
+                '^MaxSizeMb$',
+            ],
         ];
     }
 
