@@ -40,15 +40,19 @@ jobs:
         id: filter-php
         run: |
           php_versions='${{ steps.versions.outputs.php-available-list }}'
-          # Convert to array and filter to >= 8.4
-          filtered=$(echo "$php_versions" | tr ',' '\n' | awk -F. '$1*100+$2 >= 804' | paste -sd, -)
-          # Output as JSON array for matrix parsing
+          # Filter to >= 8.4, then emit one JSON array element per version.
+          # Quoting each entry matters: a comma-joined list wrapped in a single
+          # pair of quotes is one matrix value ("8.4,8.5"), which setup-php
+          # rejects as a PHP version.
+          filtered=$(echo "$php_versions" | tr ',' '\n' | awk -F. '$1*100+$2 >= 804')
           if [ -z "$filtered" ]; then
-            echo "php-version=[\"8.4\"]" >> $GITHUB_OUTPUT
+            json='["8.4"]'
           else
-            echo "php-version=[\"$filtered\"]" >> $GITHUB_OUTPUT
+            json=$(printf '%s\n' "$filtered" | awk 'BEGIN{ORS=""} {printf "%s\"%s\"", (NR>1 ? "," : ""), $0}')
+            json="[$json]"
           fi
-          echo "Filtered PHP versions from $php_versions to $filtered"
+          echo "php-version=$json" >> $GITHUB_OUTPUT
+          echo "Filtered PHP versions from $php_versions to $json"
 
   changes:
     runs-on: ubuntu-latest
@@ -114,7 +118,7 @@ jobs:
           path: apps/${{ env.APP_NAME }}
 
       - name: Set up php ${{ matrix.php-versions }}
-        uses: shivammathur/setup-php@v2 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: ${{ matrix.php-versions }}
           # https://docs.nextcloud.com/server/stable/admin_manual/installation/source_installation.html#prerequisites-for-manual-installation

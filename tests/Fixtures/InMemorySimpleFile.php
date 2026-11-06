@@ -16,6 +16,9 @@ use OCP\Files\SimpleFS\ISimpleFile;
  */
 class InMemorySimpleFile implements ISimpleFile
 {
+    /** @var resource|null Set while a caller holds the write stream. */
+    private $writeStream = null;
+
     /** @var callable|null Invoked when the file is deleted, to detach it. */
     private $onDelete = null;
 
@@ -89,8 +92,45 @@ class InMemorySimpleFile implements ISimpleFile
         return $stream;
     }
 
+    /**
+     * A stream that writes through to this file.
+     *
+     * `ISimpleFile::write()` is how a caller replaces a file's contents. The
+     * stream is a memory stream that this object owns, so the bytes written
+     * reach the file when the caller is done rather than being discarded.
+     */
     public function write()
     {
-        return fopen('php://memory', 'wb');
+        $this->writeStream = fopen('php://memory', 'wb+');
+
+        return $this->writeStream;
+    }
+
+    /**
+     * Capture anything written through `write()`.
+     *
+     * Called by tests after closing the stream, because PHP gives a memory
+     * stream no close hook of its own.
+     */
+    public function commitWriteStream(): void
+    {
+        if (!is_resource($this->writeStream)) {
+            return;
+        }
+
+        rewind($this->writeStream);
+        $contents = stream_get_contents($this->writeStream);
+        if ($contents !== false) {
+            $this->content = $contents;
+        }
+
+        fclose($this->writeStream);
+        $this->writeStream = null;
+    }
+
+    /** Replace the contents directly. */
+    public function replaceContent(string $content): void
+    {
+        $this->content = $content;
     }
 }

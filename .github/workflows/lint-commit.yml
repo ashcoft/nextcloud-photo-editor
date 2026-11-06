@@ -1,0 +1,60 @@
+# Enforces the Conventional Commits rules in commitlint.config.js.
+#
+# Without this the commitlint dependency and its configuration were never
+# invoked by anything, so a non-conventional message could merge and
+# semantic-release would then have nothing to derive a version from.
+#
+# SPDX-FileCopyrightText: 2026 Photo Editor Contributors
+# SPDX-License-Identifier: MIT
+
+name: Lint commit messages
+
+on: pull_request
+
+permissions:
+  contents: read
+
+concurrency:
+  group: commitlint-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    name: commitlint
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The full history is needed to resolve the merge base and lint the
+          # range of commits the pull request adds.
+          fetch-depth: 0
+
+      - name: Read package.json node and npm engines version
+        uses: skjnldsv/read-package-engines-version-actions@06d6db44aa62f4609ba070f556ec24bc99fb85cb # v4
+        id: versions
+        with:
+          fallbackNode: '^24'
+          fallbackNpm: '^11.3'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Set up node ${{ steps.versions.outputs.nodeVersion }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.versions.outputs.nodeVersion }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        env:
+          CYPRESS_INSTALL_BINARY: 0
+        run: pnpm install
+
+      - name: Lint the commits this PR adds
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: pnpm exec commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose

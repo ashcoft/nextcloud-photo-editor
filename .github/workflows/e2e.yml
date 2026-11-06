@@ -38,6 +38,7 @@ jobs:
             src:
               - '.github/workflows/**'
               - 'src/**'
+              - 'css/**'
               - 'tests/e2e/**'
               - 'package.json'
               - 'pnpm-lock.yaml'

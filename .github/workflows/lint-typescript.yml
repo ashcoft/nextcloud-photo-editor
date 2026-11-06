@@ -101,6 +101,10 @@ jobs:
     steps:
       - name: Summary status
         run: |
+          if [[ "${{ needs.changes.result }}" != "success" ]]; then
+            echo "The change filter did not succeed."
+            exit 1
+          fi
           if [[ "${{ needs.changes.outputs.src }}" != "false" ]]; then
             result="${{ needs.test.result }}"
             if [[ "$result" != "success" && "$result" != "skipped" && -n "$result" ]]; then

@@ -76,6 +76,17 @@ export function useEditor(fileId: string | null) {
     return canvas ? { width: canvas.width, height: canvas.height } : null
   })
 
+  /**
+   * The decoded source's dimensions, before any edit.
+   *
+   * The transform controls work in these coordinates: crop and resize are
+   * applied to the original image, not to the current preview.
+   */
+  const sourceDimensions = computed(() => {
+    const canvas = sourceCanvas.value
+    return canvas ? { width: canvas.width, height: canvas.height } : null
+  })
+
   const hasEdits = computed(() => {
     void historyVersion.value
     const current = state.value
@@ -312,6 +323,7 @@ export function useEditor(fileId: string | null) {
     canSave,
     hasEdits,
     dimensions,
+    sourceDimensions,
     load,
     save,
     undo,

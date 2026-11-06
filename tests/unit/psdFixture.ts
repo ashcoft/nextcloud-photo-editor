@@ -88,11 +88,12 @@ export interface LayerSpec {
 export interface PsdSpec {
   width: number
   height: number
-  depth?: number
   colorMode?: number
   layers?: LayerSpec[]
-  /** A raw (uncompressed) merged image, RGBA planes. */
+  /** A raw (uncompressed) merged image, RGB planes. */
   merged?: { r: number[]; g: number[]; b: number[] }
+  /** Whether the merged image also carries an alpha channel. */
+  mergedAlpha?: boolean
 }
 
 function rawChannel(bytes: number[]): Uint8Array {
@@ -104,18 +105,27 @@ function rawChannel(bytes: number[]): Uint8Array {
 
 /**
  * Build a PSD file from a spec.
+ *
+ * Only 8-bit documents are produced: the pixel data written here is one byte
+ * per sample, so a fixture claiming 16- or 32-bit depth would declare lengths
+ * that do not match its contents and would test the decoder against a file no
+ * writer produces.
  */
 export function buildPsd(spec: PsdSpec): Uint8Array {
   const { width, height } = spec
-  const depth = spec.depth ?? 8
+  const depth = 8
   const colorMode = spec.colorMode ?? 3
   const layers = spec.layers ?? []
+
+  // The header's channel count describes the merged image, not the layers: RGB
+  // plus alpha only when the merged planes actually include one.
+  const headerChannels = spec.mergedAlpha ? 4 : 3
 
   const out = new Writer()
   out.signature('8BPS')
   out.u16(1) // version 1 = PSD
   out.raw([0, 0, 0, 0, 0, 0]) // reserved
-  out.u16(layers.length > 0 ? 4 : 3) // channels
+  out.u16(headerChannels)
   out.u32(height)
   out.u32(width)
   out.u16(depth)
@@ -211,6 +221,11 @@ export function buildPsd(spec: PsdSpec): Uint8Array {
     out.raw(spec.merged.r)
     out.raw(spec.merged.g)
     out.raw(spec.merged.b)
+
+    if (spec.mergedAlpha) {
+      // The header declared a fourth channel, so the section must carry it.
+      out.raw(new Array(width * height).fill(255))
+    }
   }
 
   return out.toUint8Array()

@@ -220,7 +220,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, onMounted, ref, watch } from 'vue'
+import { defineComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { translate } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import { useEditor } from './composables/useEditor'
@@ -290,8 +290,16 @@ export default defineComponent({
 
     const theme = ref<'light' | 'dark'>('light')
 
+    /**
+     * Sync the transform controls with the source image.
+     *
+     * Crop and resize are both expressed in the *source* image's coordinates:
+     * the engine crops the original before rotating or resizing it, so filling
+     * these from the preview would offer bounds that no longer line up once the
+     * image has been rotated.
+     */
     function syncCanvasSize(): void {
-      const source = editor.previewCanvas.value
+      const source = editor.sourceDimensions.value
       if (source) {
         sourceWidth.value = source.width
         sourceHeight.value = source.height
@@ -309,7 +317,8 @@ export default defineComponent({
      *
      * The composable keeps the pixels in an offscreen canvas; this copies them
      * into the DOM canvas, sized to match, so the browser handles scrolling and
-     * scaling.
+     * scaling. The target only exists once the editor is ready, so painting is
+     * skipped until then and re-run when the status changes.
      */
     function paint(): void {
       const target = canvasElement.value
@@ -389,7 +398,22 @@ export default defineComponent({
       link.click()
     }
 
+    /**
+     * Leave the editor and return to the file's folder in the Files app.
+     *
+     * Unsaved work is confirmed first: the edits live only in this tab, so
+     * navigating away would lose them without a warning.
+     */
     function exitEditor(): void {
+      if (editor.dirty.value) {
+        const confirmed = window.confirm(
+          appTranslation('You have unsaved changes. Leave without saving?'),
+        )
+        if (!confirmed) {
+          return
+        }
+      }
+
       const directory = editor.meta.value?.directory ?? '/'
       const params = new URLSearchParams({ dir: directory })
       window.location.href = generateUrl('/apps/files/') + '?' + params.toString()
@@ -402,11 +426,34 @@ export default defineComponent({
     }
 
     onMounted(async () => {
-      theme.value = editor.meta.value?.theme ?? 'light'
       await editor.load()
-      theme.value = editor.meta.value?.theme ?? theme.value
+      theme.value = editor.meta.value?.theme ?? 'light'
+      // The canvas element only exists once the editor is ready, so the paint
+      // happens after the status watcher has run, not before the load.
       paint()
       syncCanvasSize()
+    })
+
+    /**
+     * Warn before the tab is closed or reloaded with unsaved edits.
+     *
+     * The Exit button confirms too, but a reload or a closed tab would
+     * otherwise discard the session without any prompt.
+     */
+    function onBeforeUnload(event: BeforeUnloadEvent): void {
+      if (!editor.dirty.value) {
+        return
+      }
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    onMounted(() => {
+      window.addEventListener('beforeunload', onBeforeUnload)
+    })
+
+    onBeforeUnmount(() => {
+      window.removeEventListener('beforeunload', onBeforeUnload)
     })
 
     return {
@@ -688,5 +735,30 @@ export default defineComponent({
   .photo-editor-panel--info {
     border-left: none;
   }
+}
+
+/*
+ * The administrator chooses a light or dark editor theme. Nextcloud follows
+ * the user's own theme, so an explicit choice has to override the inherited
+ * colours here rather than rely on the app's palette.
+ */
+.photo-editor-wrapper--dark {
+  --color-main-background: #1b1b1b;
+  --color-main-text: #ededed;
+  --color-background-dark: #111;
+  --color-border: rgb(255 255 255 / 15%);
+  --color-text-maxcontrast: #a8a8a8;
+}
+
+.photo-editor-wrapper--dark .photo-editor-canvas-area {
+  background: #0f0f0f;
+}
+
+.photo-editor-wrapper--light {
+  --color-main-background: #fff;
+  --color-main-text: #222;
+  --color-background-dark: #f0f0f0;
+  --color-border: rgb(0 0 0 / 15%);
+  --color-text-maxcontrast: #6b6b6b;
 }
 </style>

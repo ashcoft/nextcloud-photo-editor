@@ -78,11 +78,28 @@ class InMemorySimpleFolder implements ISimpleFolder
 
     public function newFolder(string $name): ISimpleFolder
     {
-        return $this->folders[$name] ??= new InMemorySimpleFolder($name);
+        $folder = $this->folders[$name] ??= new InMemorySimpleFolder($name);
+
+        return $folder;
     }
 
+    /**
+     * Create each path component in turn.
+     *
+     * `$path` is a slash-separated path, so treating it as a single folder name
+     * would make a nested lookup behave differently here than in production.
+     */
     public function getOrCreateFolder(string $path, int $maxRetries = 5): ISimpleFolder
     {
-        return $this->newFolder($path);
+        $folder = $this;
+
+        foreach (explode('/', trim($path, '/')) as $segment) {
+            if ($segment === '') {
+                continue;
+            }
+            $folder = $folder->newFolder($segment);
+        }
+
+        return $folder;
     }
 }

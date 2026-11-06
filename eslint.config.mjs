@@ -35,6 +35,7 @@ export default [
         createImageBitmap: 'readonly',
         HTMLCanvasElement: 'readonly',
         HTMLInputElement: 'readonly',
+        HTMLSelectElement: 'readonly',
         HTMLButtonElement: 'readonly',
         HTMLElement: 'readonly',
         ImageData: 'readonly',

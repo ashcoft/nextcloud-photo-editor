@@ -22,7 +22,8 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:e2e": "playwright test",
-    "check-types": "vue-tsc --noEmit"
+    "check-types": "vue-tsc --noEmit",
+    "commitlint": "commitlint --from origin/main --to HEAD"
   },
   "dependencies": {
     "@nextcloud/axios": "^2.5.0",

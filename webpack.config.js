@@ -9,6 +9,10 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, 'js'),
     filename: '[name].js',
+    // Lazily loaded chunks are content-hashed: without it a browser can keep
+    // serving a chunk from a previous app version after the entry script has
+    // been refreshed, because the chunk URL never changes.
+    chunkFilename: '[name].[contenthash].js',
     library: 'PhotoEditor',
     libraryTarget: 'window',
     // `auto` derives the chunk base from the loaded entry script URL, so the

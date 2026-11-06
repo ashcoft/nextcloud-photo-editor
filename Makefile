@@ -41,6 +41,8 @@ endif
 	@echo "package.json version updated to $(VERSION)"
 
 # === Build Targets ===
+.PHONY: dev-setup production-setup install build clean stage appstore test lint lint-fix all
+
 dev-setup: clean install build
 
 production-setup: clean install build
@@ -48,6 +50,8 @@ production-setup: clean install build
 install:
 	pnpm install --frozen-lockfile
 
+# `build` is phony: webpack's output is a set of files rather than one, and a
+# file target would need to enumerate them all to stay correct.
 build:
 	pnpm run build
 
@@ -58,15 +62,19 @@ clean:
 	rm -rf assets
 
 # === Package for App Store ===
-$(app_dir):
+# The staging directory is rebuilt from scratch rather than used as a directory
+# target: make would treat an existing directory as up to date and package the
+# files a previous run left behind. `--delete` then guards the copy itself.
+stage: build
+	rm -rf $(app_dir)
 	mkdir -p $(app_dir)
-	rsync -a \
+	rsync -a --delete \
 		--include='CHANGELOG.md' --include='l10n/' --include='l10n/**' \
 		--exclude='*.md' \
 		--exclude='.git' --exclude='.github' --exclude='node_modules' --exclude='src' \
 		--exclude='tests' --exclude='vendor-bin' --exclude='docs' --exclude='wiki' \
 		--exclude='scripts' \
-		--exclude='LICENSES' --exclude='AGENTS.md' \
+		--exclude='LICENSES' --exclude='AGENTS.md' --exclude='AI_POLICY.md' \
 		--exclude='build' --exclude='*.tar.gz' --exclude='*.zip' \
 		--exclude='*.lock' --exclude='pnpm-lock.yaml' --exclude='composer.lock' \
 		--exclude='tsconfig.json' --exclude='jest.config.js' --exclude='playwright.config.ts' \
@@ -77,15 +85,18 @@ $(app_dir):
 		--exclude='openapi.json' --exclude='sonar-project.properties' \
 		--exclude='commitlint.config.js' --exclude='renovate.json' --exclude='release.config.js' \
 		--exclude='pnpm-workspace.yaml' \
+		--exclude='coverage' --exclude='playwright-report' --exclude='test-results' \
 		. $(app_dir)/
 	find $(app_dir) -type d -exec chmod 755 {} +
 	find $(app_dir) -type f -exec chmod 644 {} +
 
-appstore: $(app_dir)
+appstore: stage
 	cd $(build_dir) && tar -czf $(app_id).tar.gz --owner=www-data --group=www-data $(app_id)
-	@command -v zip >/dev/null 2>&1 && \
-		{ cd $(build_dir) && zip -r $(app_id).zip $(app_id); } || \
-		echo "Warning: zip not installed, skipping zip archive"
+	@if command -v zip >/dev/null 2>&1; then \
+		cd $(build_dir) && zip -r $(app_id).zip $(app_id); \
+	else \
+		echo "Warning: zip not installed, skipping zip archive"; \
+	fi
 
 # === Development ===
 test:

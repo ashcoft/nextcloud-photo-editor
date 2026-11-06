@@ -24,7 +24,6 @@ import {
   type PsdHeader,
   type PsdLayer,
   blendModeName,
-  isDrawable,
 } from './types'
 
 /** Blend modes the canvas 2D context implements directly. */

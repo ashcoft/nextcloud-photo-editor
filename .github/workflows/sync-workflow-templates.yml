@@ -90,6 +90,8 @@ jobs:
                   cp "$workflow" "$target_file"
 
                   # Apply patch if one exists
+                  # `patch_worked` is only set when a patch file exists.
+                  patch_failed=0
                   if [ -f "$target_file.patch" ]; then
                     echo "🩹 Applying patch"
                     cd ./target
@@ -103,7 +105,16 @@ jobs:
                     else
                       echo "  - [ ] ❌ Patch failed" >> $GITHUB_ENV
                       draft_only=1
+                      patch_failed=1
                     fi
+                  fi
+
+                  # The lock records the template as applied. A failed patch
+                  # must not advance it, or the next run would see the new
+                  # checksum and skip re-applying the patch that never applied.
+                  if [[ "$patch_failed" == "1" ]]; then
+                    echo "⏸️ Not advancing the lock for $filename: the patch failed"
+                    continue
                   fi
 
                   if [[ "$locked_version" != "" ]]; then
