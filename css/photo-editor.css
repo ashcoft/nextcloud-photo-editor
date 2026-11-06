@@ -1,0 +1,35 @@
+/* SPDX-FileCopyrightText: 2026 Photo Editor Contributors
+ * SPDX-License-Identifier: MIT
+ */
+
+/*
+ * Nextcloud renders app content inside #content, which sits below a fixed
+ * header. A full-page app therefore has to size itself to the viewport minus
+ * that header: `height: 100vh` would overflow by the header's height and push
+ * the bottom of the editor off-screen behind a scrollbar.
+ */
+#photo-editor-container {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: calc(100vh - var(--header-height, 50px));
+	min-height: 20rem;
+	margin: 0;
+	padding: 0;
+	background: var(--color-main-background);
+}
+
+/* The editor mounts its own root here; let it fill the container. */
+#photo-editor-container > #photo-editor-wrapper {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+/* The start page scrolls rather than filling the viewport. */
+#photo-editor-start {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 100%;
+	overflow-y: auto;
+}

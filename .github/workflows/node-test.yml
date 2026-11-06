@@ -1,0 +1,129 @@
+# This workflow is provided via the organization template repository
+#
+# https://github.com/nextcloud/.github
+# https://docs.github.com/en/actions/learn-github-actions/sharing-workflows-with-your-organization
+#
+# SPDX-FileCopyrightText: 2023-2024 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: MIT
+
+name: Node tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - stable*
+
+permissions:
+  contents: read
+
+concurrency:
+  group: node-tests-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    outputs:
+      src: ${{ steps.changes.outputs.src}}
+
+    steps:
+      # paths-filter needs the repository to compute a diff on push events; it
+      # can query the API for pull_request events but not for a push.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: changes
+        with:
+          filters: |
+            src:
+              - '.github/workflows/**'
+              - '__tests__/**'
+              - '__mocks__/**'
+              - 'tests/**'
+              - 'src/**'
+              - 'lib/**'
+              - 'appinfo/info.xml'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'tsconfig.json'
+              - '**.js'
+              - '**.ts'
+              - '**.vue'
+
+  test:
+    runs-on: ubuntu-latest
+
+    needs: changes
+    if: needs.changes.outputs.src != 'false'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read package.json node and npm engines version
+        uses: skjnldsv/read-package-engines-version-actions@06d6db44aa62f4609ba070f556ec24bc99fb85cb # v4
+        id: versions
+        with:
+          fallbackNode: '^24'
+          fallbackNpm: '^11.3'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - name: Set up node ${{ steps.versions.outputs.nodeVersion }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.versions.outputs.nodeVersion }}
+          cache: 'pnpm'
+
+      - name: Install dependencies & build
+        env:
+          CYPRESS_INSTALL_BINARY: 0
+        run: |
+          pnpm install
+          pnpm run --if-present build
+
+      # One run: `test:coverage` executes the same suite, so a separate
+      # `test` step would run every test twice.
+      - name: Test and process coverage
+        run: pnpm run --if-present test:coverage
+
+      - name: Collect coverage
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: ./coverage/lcov.info
+
+  summary:
+    permissions:
+      contents: none
+    runs-on: ubuntu-latest
+    needs: [changes, test]
+
+    if: always()
+
+    name: test-summary
+
+    steps:
+      - name: Summary status
+        run: |
+          if [[ "${{ needs.changes.result }}" != "success" ]]; then
+            echo "The change filter did not succeed."
+            exit 1
+          fi
+          if [[ "${{ needs.changes.outputs.src }}" != "false" ]]; then
+            result="${{ needs.test.result }}"
+            if [[ "$result" != "success" && "$result" != "skipped" && -n "$result" ]]; then
+              exit 1
+            fi
+          fi

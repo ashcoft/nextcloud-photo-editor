@@ -1,0 +1,39 @@
+# Dependencies
+/node_modules/
+/vendor/
+/vendor-bin/nextcloud-ocp/vendor/
+
+# Webpack build output
+js/*.js
+js/*.js.map
+!js/*.LICENSE.txt
+
+# Runtime assets copied by webpack (generated from node_modules)
+/assets/
+
+# Build artifacts
+/build/
+
+# Playwright
+playwright-report/
+test-results/
+/blob-report/
+/playwright/.cache/
+
+# Test coverage
+/coverage/
+
+# PHP CS Fixer cache
+.php-cs-fixer.cache
+
+# PHPUnit cache
+/tests/.phpunit.cache/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# System
+.DS_Store
+Thumbs.db

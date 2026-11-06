@@ -1,0 +1,26 @@
+{
+    "mimetypes": [
+        "image/vnd.adobe.photoshop",
+        "image/x-photoshop",
+        "image/photoshop",
+        "image/psd",
+        "image/x-psd",
+        "application/x-photoshop",
+        "image/vnd.adobe.photoshop-large",
+        "image/psb",
+        "image/x-psb"
+    ],
+    "aliases": {
+        "psd": "image/vnd.adobe.photoshop",
+        "psb": "image/vnd.adobe.photoshop-large"
+    },
+    "mimetypealiases": {
+        "image/x-photoshop": "image/vnd.adobe.photoshop",
+        "image/photoshop": "image/vnd.adobe.photoshop",
+        "image/psd": "image/vnd.adobe.photoshop",
+        "image/x-psd": "image/vnd.adobe.photoshop",
+        "application/x-photoshop": "image/vnd.adobe.photoshop",
+        "image/psb": "image/vnd.adobe.photoshop-large",
+        "image/x-psb": "image/vnd.adobe.photoshop-large"
+    }
+}
