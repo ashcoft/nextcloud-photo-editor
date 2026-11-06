@@ -42,6 +42,7 @@ export default [
         TextDecoder: 'readonly',
         AbortController: 'readonly',
         AbortSignal: 'readonly',
+        BeforeUnloadEvent: 'readonly',
         Event: 'readonly',
         URLSearchParams: 'readonly',
         requestAnimationFrame: 'readonly',

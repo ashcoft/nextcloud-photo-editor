@@ -444,7 +444,7 @@ class FileController extends Controller
             return null;
         }
 
-        $mimeType = $info['mime'] ?? '';
+        $mimeType = $info['mime'];
         if (!$this->mimeMatchesExtension($mimeType, $fileName)) {
             return null;
         }

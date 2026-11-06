@@ -26,7 +26,7 @@ Vue 3 front end that does all rendering client-side.
 - Colour adjustments: brightness, contrast, saturation, exposure, temperature, hue, gamma
 - Filters: grayscale, sepia, invert, blur, sharpen, auto contrast
 - Transforms: crop, rotate 90/180/270, flip, resize
-- Full undo/redo history, with a reset that discards every change at once
+- Undo/redo history over the last 100 edits, with a reset that discards every change at once
 
 Every edit is non-destructive: the decoded source is never modified, and rendering is a pure function
 of the source plus the current edit state. That is what makes undo and the live preview cheap.
@@ -34,9 +34,11 @@ of the source plus the current edit state. That is what makes undo and the live 
 ### Integration
 
 - **Open with Photo Editor** file action in the Files app
-- Preview thumbnails in the Files grid, rendered in the browser and cached server-side
+- Preview thumbnails in the Files grid: the browser renders them for PSD files and caches them
+  server-side, while raster formats keep using Nextcloud's own previews
 - Start page with recent images
-- Save back to PNG, JPEG, WEBP, GIF, BMP and AVIF, with optimistic-concurrency protection
+- Save back to PNG and JPEG, with optimistic-concurrency protection; the other formats it opens
+  are exported instead, because a canvas re-encodes them as PNG
 - Export the current view as a download
 - Admin settings for theme, previews and maximum file size
 - Dark and light themes, responsive layout, works on desktop and mobile
@@ -145,7 +147,7 @@ pnpm run check-types  # vue-tsc
 composer test:unit    # PHPUnit (back end)
 composer psalm        # Psalm
 composer phpstan      # PHPStan
-composer rector       # Rector (dry run; see the rector workflow)
+composer rector       # Rector (applies changes; the workflow runs it in a PR)
 composer cs:check     # php-cs-fixer, dry run
 composer lint         # php -l over every PHP file
 ```
