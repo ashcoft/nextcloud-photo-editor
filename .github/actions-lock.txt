@@ -1,0 +1,9 @@
+# Actions pinned by the workflow-template sync.
+#
+# The sync workflow records the md5 of each template it copies here, so an
+# unchanged template is skipped on the next run. Only files that already exist
+# under .github/workflows/ are tracked; the file starts empty and is populated
+# on the first sync.
+#
+# SPDX-FileCopyrightText: 2026 Photo Editor Contributors
+# SPDX-License-Identifier: MIT

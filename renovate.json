@@ -1,0 +1,65 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "labels": [
+    "dependencies",
+    "renovate"
+  ],
+  "description": "Renovate configuration for photo-editor",
+  "packageRules": [
+    {
+      "description": "Group Vue-related dependencies",
+      "groupName": "vue-dependencies",
+      "matchPackageNames": [
+        "/@vue/*/",
+        "/vue*/"
+      ]
+    },
+    {
+      "description": "Group Babel-related dependencies",
+      "groupName": "babel-dependencies",
+      "matchPackageNames": [
+        "/@babel/*/",
+        "/babel-*/"
+      ]
+    },
+    {
+      "description": "Group ESLint-related dependencies",
+      "groupName": "eslint-dependencies",
+      "matchPackageNames": [
+        "/eslint*/",
+        "/@eslint/*/",
+        "typescript-eslint",
+        "vue-eslint-parser"
+      ]
+    },
+    {
+      "description": "Skip phpunit update - v13.2.1 requires sebastian/diff ^9.0 but vimeo/psalm only supports ^8.0",
+      "matchPackageNames": ["phpunit/phpunit"],
+      "enabled": false
+    },
+    {
+      "description": "Disable updates for locked versions in overrides",
+      "matchPackageNames": [
+        "vue"
+      ],
+      "enabled": false
+    }
+  ],
+  "composer": {
+    "enabled": true
+  },
+  "npm": {
+    "enabled": true
+  },
+  "github-actions": {
+    "enabled": true
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true
+  },
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 5
+}

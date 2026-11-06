@@ -69,13 +69,14 @@ $(app_dir):
 		--exclude='LICENSES' --exclude='AGENTS.md' \
 		--exclude='build' --exclude='*.tar.gz' --exclude='*.zip' \
 		--exclude='*.lock' --exclude='pnpm-lock.yaml' --exclude='composer.lock' \
-		--exclude='tsconfig.json' --exclude='jest.config.js' \
+		--exclude='tsconfig.json' --exclude='jest.config.js' --exclude='playwright.config.ts' \
 		--exclude='phpstan.neon' --exclude='psalm.xml' --exclude='rector.php' \
-		--exclude='eslint.config.mjs' --exclude='stylelint.config.js' --exclude='babel.config.js' \
+		--exclude='eslint.config.mjs' --exclude='stylelint.config.mjs' --exclude='babel.config.js' \
 		--exclude='webpack.config.js' --exclude='.npmrc' --exclude='.nvmrc' \
 		--exclude='.php-cs-fixer.dist.php' \
 		--exclude='openapi.json' --exclude='sonar-project.properties' \
-		--exclude='release.config.js' \
+		--exclude='commitlint.config.js' --exclude='renovate.json' --exclude='release.config.js' \
+		--exclude='pnpm-workspace.yaml' \
 		. $(app_dir)/
 	find $(app_dir) -type d -exec chmod 755 {} +
 	find $(app_dir) -type f -exec chmod 644 {} +
@@ -95,6 +96,7 @@ lint:
 	composer run lint
 	composer run cs:check
 	pnpm run lint
+	pnpm run stylelint
 
 lint-fix:
 	composer run cs:fix
