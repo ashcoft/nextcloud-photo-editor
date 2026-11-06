@@ -156,14 +156,38 @@ composer psalm        # Psalm
 composer phpstan      # PHPStan
 composer cs:check     # php-cs-fixer, dry run
 pnpm run lint         # ESLint
+pnpm run stylelint    # Stylelint
 pnpm run check-types  # vue-tsc
+pnpm run test:e2e     # Playwright, real browser
 ```
 
 All of these must pass cleanly before a change is finished.
 
 ---
 
+## Continuous integration
+
+Workflows live in `.github/workflows/`. Most are the Nextcloud organization templates and are kept in
+sync by the `Update workflows` workflow, so prefer changing behaviour through the app's own config
+(`phpstan.neon`, `psalm.xml`, `package.json` scripts) over editing a template in place. `phpstan.yml`
+and `psalm.yml` assert the PHP version pins (`phpVersion: 80400`, `phpVersion="8.4"`), so those two
+values are load-bearing.
+
+The `phpunit-*` workflows install the app into a real Nextcloud checkout and enable it with `occ`, so a
+change that only works in isolation will fail there even when the unit suite passes.
+
+`.github/AI_POLICY.md` is the Nextcloud AI Contribution Policy. `.github/CONTRIBUTING.md` summarises
+what it requires of this repository, and `.github/PULL_REQUEST_TEMPLATE.md` carries the disclosure
+section. Keep all three in step when the policy changes.
+
+---
+
 ## Release
 
 `make bump-version VERSION=x.y.z` updates both `appinfo/info.xml` and `package.json`. `make appstore`
-builds the release archive. Keep the two version numbers in step.
+builds the release archive. Keep the two version numbers in step — `version-check.yml` enforces it.
+
+The `release` workflow runs semantic-release, which reads conventional commits and bumps both version
+files through `make bump-version`. Release-worthy types are `feat`, `perf`, `fix` and `fix(deps)`;
+`chore`, `docs`, `test`, `ci` and `refactor` do not cut a release. The rules and the reasoning behind
+them are in `release.config.js`.

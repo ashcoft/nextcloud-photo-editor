@@ -136,12 +136,16 @@ Settings live under **Administration settings → Photo Editor**.
 pnpm run dev          # webpack watch
 pnpm run build        # production bundle
 pnpm test             # Jest (front end)
+pnpm run test:coverage
+pnpm run test:e2e     # Playwright (front end, real browser)
 pnpm run lint         # ESLint
+pnpm run stylelint    # Stylelint
 pnpm run check-types  # vue-tsc
 
 composer test:unit    # PHPUnit (back end)
 composer psalm        # Psalm
 composer phpstan      # PHPStan
+composer rector       # Rector (dry run; see the rector workflow)
 composer cs:check     # php-cs-fixer, dry run
 composer lint         # php -l over every PHP file
 ```
@@ -150,6 +154,32 @@ composer lint         # php -l over every PHP file
 release archive in `build/artifacts`.
 
 See [AGENTS.md](AGENTS.md) for the conventions this repository follows.
+
+## Continuous integration
+
+Every workflow lives in `.github/workflows/`. Most are the Nextcloud organization templates, kept in
+sync by the `Update workflows` workflow.
+
+| Workflow | What it runs |
+| --- | --- |
+| `lint-php` | `php -l` on every supported PHP version |
+| `lint-php-cs` | php-cs-fixer, dry run |
+| `lint-info-xml` | `appinfo/info.xml` against the App Store schema |
+| `lint-eslint` | ESLint |
+| `lint-typescript` | vue-tsc |
+| `lint-stylelint` | Stylelint |
+| `phpstan` | PHPStan |
+| `psalm`, `psalm-matrix` | Psalm, against each supported OCP version |
+| `node-test` | Jest, with coverage uploaded to Codecov |
+| `phpunit-sqlite`, `phpunit-mariadb`, `phpunit-oci` | PHPUnit against a real Nextcloud on each database |
+| `e2e` | Playwright against the built bundle |
+| `codeql` | CodeQL for the Actions and TypeScript sources |
+| `version-check` | `appinfo/info.xml` and `package.json` versions agree |
+| `release` | semantic-release, then build and attach the app archives |
+| `rector`, `update-nextcloud-ocp`, `pnpm-audit`, `renovate` | Scheduled dependency and code maintenance |
+
+`phpunit-*` install the app into a real Nextcloud server checkout and run it with
+`occ app:enable`, so the app is exercised against the framework rather than only in isolation.
 
 ## Security
 
