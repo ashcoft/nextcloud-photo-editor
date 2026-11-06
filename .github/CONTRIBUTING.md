@@ -16,7 +16,7 @@ Thank you for your interest in contributing to Photo Editor! This document provi
 
 ## AI-Assisted Contributions
 
-This project follows the [AI Contribution Policy](AI_POLICY.md), which is the Nextcloud policy as it
+This project follows the [AI Contribution Policy](../AI_POLICY.md), which is the Nextcloud policy as it
 applies to this app. Read that document before contributing with AI assistance. In short:
 
 - Disclose AI use in the PR description, and add an `Assisted-by: AGENT_NAME:MODEL_VERSION` trailer to every commit containing AI-assisted content.

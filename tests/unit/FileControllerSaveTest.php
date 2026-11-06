@@ -171,6 +171,32 @@ class FileControllerSaveTest extends TestCase
         $this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
     }
 
+    /**
+     * A tiny, solid-colour PNG can declare a canvas whose decoded bitmap would
+     * exhaust the server's memory, so the pixel count is bounded before GD is
+     * asked to allocate it.
+     */
+    public function testRefusesAnImageBeyondThePixelBudget(): void
+    {
+        // A 1x1 PNG whose IHDR claims 16384x16384: within the edge cap, but
+        // 268M pixels.
+        $png = base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+            true,
+        );
+        $oversized = substr($png, 0, 16) . pack('N', 16384) . pack('N', 16384) . substr($png, 24);
+
+        $file = $this->imageFile();
+        $controller = $this->controller($file, [
+            'image' => 'data:image/png;base64,' . base64_encode($oversized),
+            'etag' => 'etag-a',
+        ]);
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+    }
+
     public function testRefusesToSaveAReadOnlyFile(): void
     {
         $file = $this->imageFile(updateable: false);
