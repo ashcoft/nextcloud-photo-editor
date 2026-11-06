@@ -7,15 +7,17 @@ Thank you for your interest in contributing to Photo Editor! This document provi
 1. Fork the repository
 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/photo-editor.git`
 3. Create a branch: `git checkout -b feature/your-feature-name`
-4. Make your changes
-5. Run the checks: `make lint` and `make test`
-6. Commit your changes: `git commit -m "feat: add your feature"`
-7. Push to your fork: `git push origin feature/your-feature-name`
-8. Open a Pull Request
+4. Install dependencies: `pnpm install` and `composer install`
+5. Make your changes
+6. Run the checks: `make lint` and `make test`
+7. Commit your changes: `git commit -m "feat: add your feature"`
+8. Push to your fork: `git push origin feature/your-feature-name`
+9. Open a Pull Request
 
 ## AI-Assisted Contributions
 
-This project follows the [Nextcloud AI Contribution Policy](AI_POLICY.md). If you used an AI tool, read that document first. In short:
+This project follows the [AI Contribution Policy](AI_POLICY.md), which is the Nextcloud policy as it
+applies to this app. Read that document before contributing with AI assistance. In short:
 
 - Disclose AI use in the PR description, and add an `Assisted-by: AGENT_NAME:MODEL_VERSION` trailer to every commit containing AI-assisted content.
 - You are the author of every line you submit. If you cannot explain why a change works the way it does, do not submit it.

@@ -14,15 +14,14 @@ Fixes #
 ## AI Disclosure
 
 <!--
-Required by the Nextcloud AI Contribution Policy (.github/AI_POLICY.md).
-State whether AI tools were used, and how. If they were not, say so.
-Remove this section only if you have nothing to declare.
+Required by the AI Contribution Policy (AI_POLICY.md).
+Do not remove this section; every PR must select exactly one option below.
 -->
 
 - [ ] This PR contains no AI-assisted content
 - [ ] This PR contains AI-assisted content, described below, and every affected commit carries an `Assisted-by:` trailer
 
-<!-- How AI was used, and what you verified by hand -->
+<!-- Select exactly one option above. If AI was used, describe how, and what you verified by hand. -->
 
 ## How Has This Been Tested?
 

@@ -176,7 +176,7 @@ values are load-bearing.
 The `phpunit-*` workflows install the app into a real Nextcloud checkout and enable it with `occ`, so a
 change that only works in isolation will fail there even when the unit suite passes.
 
-`.github/AI_POLICY.md` is the Nextcloud AI Contribution Policy. `.github/CONTRIBUTING.md` summarises
+`AI_POLICY.md` is the Nextcloud AI Contribution Policy as it applies to this app. `.github/CONTRIBUTING.md` summarises
 what it requires of this repository, and `.github/PULL_REQUEST_TEMPLATE.md` carries the disclosure
 section. Keep all three in step when the policy changes.
 
