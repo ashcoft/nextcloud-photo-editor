@@ -6,8 +6,9 @@ making changes. FOLLOW GUIDANCE AS CLOSELY AS POSSIBLE.
 ## Project Overview
 
 This is a Nextcloud app called `photo_editor` that edits raster photos and opens Photoshop PSD/PSB
-documents entirely in Nextcloud 34–35. The browser does all rendering; the PHP backend only resolves
-files, streams bytes, stores previews, and persists settings.
+documents entirely in Nextcloud 34–35. The browser does all rendering; the PHP backend resolves files,
+streams bytes to the browser, writes edited image bytes back under an etag-checked lock, stores
+previews, and persists settings.
 
 It is modelled on two projects:
 
