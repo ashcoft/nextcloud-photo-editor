@@ -43,15 +43,22 @@ class FileControllerSaveTest extends TestCase
     /**
      * Build a controller whose file lookup resolves to $file.
      *
+     * `$lockedFile` is returned by the second lookup, the one made under the
+     * lock. Supplying a different object is what lets a test prove the version
+     * is re-read after the lock rather than taken from the first lookup.
+     *
      * @param array<string, mixed> $params Request parameters.
      */
     private function controller(
         File $file,
         array $params = [],
         ?ILockingProvider $locking = null,
+        ?File $lockedFile = null,
     ): FileController {
         $fileService = $this->createMock(FileService::class);
-        $fileService->method('resolveFile')->willReturn($file);
+        $fileService->method('resolveFile')->willReturnOnConsecutiveCalls(
+            ...($lockedFile === null ? [$file] : [$file, $lockedFile]),
+        );
         $fileService->method('canSave')->willReturnCallback(
             static fn (File $f): bool => $f->isUpdateable()
                 && !str_ends_with($f->getName(), '.psd')
@@ -106,8 +113,23 @@ class FileControllerSaveTest extends TestCase
 
     public function testSavesAndReturnsTheNewVersion(): void
     {
-        $file = $this->imageFile(['etag-a', 'etag-b']);
-        $controller = $this->controller($file, ['image' => $this->pngDataUrl(), 'etag' => 'etag-a']);
+        // The file resolved under the lock reports the same version, so the
+        // save proceeds and the new version comes back.
+        $file = $this->imageFile(['etag-a']);
+        $locked = $this->imageFile(['etag-a', 'etag-b']);
+
+        // The edit must actually be persisted, not just reported.
+        $locked->expects($this->once())
+            ->method('putContent')
+            ->with($this->callback(
+                static fn (string $binary): bool => str_starts_with($binary, "\x89PNG\r\n\x1a\n"),
+            ));
+
+        $controller = $this->controller(
+            $file,
+            ['image' => $this->pngDataUrl(), 'etag' => 'etag-a'],
+            lockedFile: $locked,
+        );
 
         $response = $controller->save(42);
 
@@ -117,8 +139,17 @@ class FileControllerSaveTest extends TestCase
 
     public function testRefusesASaveWhenTheFileChanged(): void
     {
-        $file = $this->imageFile(['etag-b']);
-        $controller = $this->controller($file, ['image' => $this->pngDataUrl(), 'etag' => 'etag-a']);
+        // The under-lock lookup reports a newer version than the request's
+        // etag, so the save must be refused rather than overwrite it.
+        $file = $this->imageFile(['etag-a']);
+        $locked = $this->imageFile(['etag-b']);
+        $locked->expects($this->never())->method('putContent');
+
+        $controller = $this->controller(
+            $file,
+            ['image' => $this->pngDataUrl(), 'etag' => 'etag-a'],
+            lockedFile: $locked,
+        );
 
         $response = $controller->save(42);
 

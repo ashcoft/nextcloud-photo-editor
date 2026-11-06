@@ -41,7 +41,9 @@ describe('readRecentImages', () => {
   it('drops entries missing required fields', () => {
     const element = container({
       recentImages: JSON.stringify([
-        { id: 1, name: 'a.png', path: '/a.png', extension: 'png', mtime: 100 },
+        // Complete, including isPsd, so the retained record proves the parser
+        // accepts a full object rather than one it silently tolerates.
+        { id: 1, name: 'a.png', path: '/a.png', extension: 'png', mtime: 100, isPsd: false },
         { id: 2, name: 'b.png' },
       ]),
     })
