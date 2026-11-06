@@ -442,8 +442,11 @@ export default defineComponent({
   flex-direction: column;
   box-sizing: border-box;
   width: 100%;
-  height: 100vh;
-  min-height: 100vh;
+
+  /* Fill the container the template provides, which already excludes the
+   * Nextcloud header. `100vh` here would overflow past the header. */
+  height: 100%;
+  min-height: 0;
   background: var(--color-main-background);
   color: var(--color-main-text);
 }
@@ -669,7 +672,7 @@ export default defineComponent({
   }
 }
 
-@media (max-width: 900px) {
+@media (width <= 900px) {
   .photo-editor-body {
     flex-direction: column;
     overflow: auto;
