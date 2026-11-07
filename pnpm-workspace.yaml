@@ -1,0 +1,18 @@
+# pnpm 11+ no longer reads settings from the `pnpm` field in package.json or
+# from .npmrc; they live here instead. Both settings below were migrated from
+# there when pnpm was bumped to v12.
+#
+# overrides: force one Babel major so the config presets and babel-jest resolve
+# the same @babel/core. Without it babel-jest picks core 7 while the presets
+# pick core 8, and jest stops stripping TypeScript.
+overrides:
+  '@babel/core': '^8.0.0'
+
+# allowBuilds replaces onlyBuiltDependencies/ignoredBuiltDependencies, and
+# strictDepBuilds now defaults to true, so a skipped build fails the install.
+# @parcel/watcher is an optional native watcher from jest-haste-map; its
+# install script compiles node-gyp bindings, but prebuilt binaries ship as
+# optional dependencies and jest falls back cleanly without it, so the build
+# is explicitly denied.
+allowBuilds:
+  '@parcel/watcher': false

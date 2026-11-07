@@ -71,10 +71,5 @@
     "vue-tsc": "^3.0.0",
     "webpack": "^5.100.0",
     "webpack-cli": "^7.0.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "@babel/core": "^8.0.0"
-    }
   }
 }
