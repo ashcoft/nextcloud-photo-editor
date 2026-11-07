@@ -121,7 +121,10 @@ async function renderMerged(document: PsdDocument): Promise<HTMLCanvasElement | 
   const red = planes[0]
   const green = planes[1]
   const blue = planes[2]
-  const alpha = hasAlphaChannel(document) ? planes[3] : undefined
+  // Grayscale documents have no separate green/blue planes, so a transparency
+  // channel sits at index 1 rather than 3.
+  const alphaIndex = header.colorMode === ColorMode.GRAYSCALE ? 1 : 3
+  const alpha = hasAlphaChannel(document) ? planes[alphaIndex] : undefined
 
   if (red === undefined) {
     return null
