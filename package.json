@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Nextcloud app for photo editing and PSD viewing",
-  "packageManager": "pnpm@10.34.9",
+  "packageManager": "pnpm@12.17.0",
   "license": "MIT",
   "author": "Photo Editor Contributors",
   "repository": "https://github.com/ashcoft/photo-editor",
