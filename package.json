@@ -33,9 +33,9 @@
     "vue": "3.5.22"
   },
   "devDependencies": {
-    "@babel/core": "^7.28.0",
-    "@babel/preset-env": "^7.28.0",
-    "@babel/preset-typescript": "^7.27.0",
+    "@babel/core": "^8.0.0",
+    "@babel/preset-env": "^8.0.0",
+    "@babel/preset-typescript": "^8.0.0",
     "@commitlint/config-conventional": "^20.0.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.56.0",
@@ -70,5 +70,10 @@
     "vue-tsc": "^2.1.10",
     "webpack": "^5.100.0",
     "webpack-cli": "^6.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@babel/core": "^8.0.0"
+    }
   }
 }
