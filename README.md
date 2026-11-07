@@ -106,8 +106,8 @@ occ app:enable photo_editor
 ### From source
 
 ```bash
-git clone https://github.com/ashcoft/photo-editor.git
-cd photo-editor
+git clone https://github.com/ashcoft/nextcloud-photo-editor.git
+cd nextcloud-photo-editor
 
 # Front end
 corepack enable
