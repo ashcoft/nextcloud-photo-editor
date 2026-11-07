@@ -149,4 +149,53 @@ class ThumbnailServiceTest extends TestCase
     {
         $this->assertNull($this->service()->decodePngDataUrl('not-a-data-url'));
     }
+
+    /**
+     * A complete IHDR but no pixel data. getimagesizefromstring() reads only
+     * the header, so this must be caught by the full decode.
+     */
+    public function testRejectsAPngWithAHeaderButNoPixels(): void
+    {
+        $headerOnly = base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ==',
+            true,
+        );
+        // Keep the signature and IHDR, drop everything after.
+        $truncated = substr($headerOnly, 0, 33);
+
+        $this->assertNull(
+            $this->service()->decodePngDataUrl('data:image/png;base64,' . base64_encode($truncated)),
+        );
+    }
+
+    /**
+     * A small, highly compressible PNG can declare huge dimensions; the
+     * decoded bitmap, not the byte count, is what has to be bounded.
+     */
+    public function testRejectsAnImageBeyondTheDimensionLimit(): void
+    {
+        // A 1x1 PNG whose IHDR is rewritten to claim 20000x20000.
+        $png = $this->png();
+        $width = pack('N', 20000);
+        $height = pack('N', 20000);
+        $oversized = substr($png, 0, 16) . $width . $height . substr($png, 24);
+
+        $this->assertNull(
+            $this->service()->decodePngDataUrl('data:image/png;base64,' . base64_encode($oversized)),
+        );
+    }
+
+    /**
+     * The encoded payload is rejected before it is decoded, so an oversized
+     * upload cannot be allocated in full first.
+     */
+    public function testRejectsAnOversizedEncodedPayload(): void
+    {
+        // 8 MB of base64 decodes to 6 MB, over the 5 MB decoded cap.
+        $payload = str_repeat('A', 8 * 1024 * 1024);
+
+        $this->assertNull(
+            $this->service()->decodePngDataUrl('data:image/png;base64,' . $payload),
+        );
+    }
 }
