@@ -176,6 +176,24 @@ values are load-bearing.
 The `phpunit-*` workflows install the app into a real Nextcloud checkout and enable it with `occ`, so a
 change that only works in isolation will fail there even when the unit suite passes.
 
+### Action pinning
+
+Third-party actions are pinned to a full commit SHA, with the release it corresponds to in a trailing
+comment:
+
+```yaml
+uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+```
+
+The SHA is what actually runs, so it is the thing that has to be reviewed. A mutable tag can be moved
+to point at different code without any change here, which is how the `shivammathur/setup-php` `v2` tag
+is flagged in this repository's history: the tag was safe to reference but not to depend on.
+
+Pinned actions are kept current by Renovate and Dependabot, which raise a pull request for each new
+release. That is the update path, so a pinned SHA is not a decision to freeze the action — review the
+changelog on the pull request and merge it as usual. Do not replace a SHA with a tag to make a diff
+read more clearly; add the version in the comment instead.
+
 `AI_POLICY.md` is the Nextcloud AI Contribution Policy as it applies to this app. `.github/CONTRIBUTING.md` summarises
 what it requires of this repository, and `.github/PULL_REQUEST_TEMPLATE.md` carries the disclosure
 section. Keep all three in step when the policy changes.

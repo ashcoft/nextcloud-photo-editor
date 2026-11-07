@@ -1,5 +1,8 @@
 name: "CodeQL"
 
+# The actions below are pinned to a commit SHA rather than a tag; the release is
+# in the trailing comment. Renovate and Dependabot raise a pull request for each
+# new release, so the pin is kept current through review. See AGENTS.md.
 on:
   push:
     branches: [main]
