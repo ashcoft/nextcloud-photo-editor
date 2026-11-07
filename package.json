@@ -37,6 +37,7 @@
     "@babel/preset-env": "^7.28.0",
     "@babel/preset-typescript": "^7.27.0",
     "@commitlint/config-conventional": "^20.0.0",
+    "@commitlint/rules": "^20.5.3",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.56.0",
     "@semantic-release/changelog": "^7.0.0",
