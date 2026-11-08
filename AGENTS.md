@@ -187,13 +187,16 @@ uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 ```
 
 The SHA is what actually runs, so it is the thing that has to be reviewed. A mutable tag can be moved
-to point at different code without any change here, which is how the `shivammathur/setup-php` `v2` tag
-is flagged in this repository's history: the tag was safe to reference but not to depend on.
+to point at different code without any change here; the `shivammathur/setup-php` `v2` reference in this
+repository's history illustrates why a mutable tag is not a reliable pin.
 
-Pinned actions are kept current by Renovate and Dependabot, which raise a pull request for each new
-release. That is the update path, so a pinned SHA is not a decision to freeze the action — review the
-changelog on the pull request and merge it as usual. Do not replace a SHA with a tag to make a diff
-read more clearly; add the version in the comment instead.
+Pinned actions are kept current by Renovate and Dependabot, which raise update pull requests on a
+schedule rather than for every release. That is the update path, so a pinned SHA is not a decision to
+freeze the action — review the changelog on the pull request and merge it as usual. Both bots cap how
+many pull requests they keep open (`open-pull-requests-limit` for Dependabot, `prConcurrentLimit` for
+Renovate), so an update can wait unproposed; Renovate's Dependency Dashboard lists those pending, which
+is where to look when no pull request has arrived. Do not replace a SHA with a tag to make a diff read
+more clearly; add the version in the comment instead.
 
 `AI_POLICY.md` is the Nextcloud AI Contribution Policy as it applies to this app. `.github/CONTRIBUTING.md` summarises
 what it requires of this repository, and `.github/PULL_REQUEST_TEMPLATE.md` carries the disclosure
