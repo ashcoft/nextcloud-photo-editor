@@ -3,8 +3,7 @@
 A native Nextcloud app for editing photos and opening Photoshop PSD documents, in the spirit of
 [PhotoCraft](https://github.com/storytold/photocraft) — an open-source, clean-room image editor.
 
-The app follows the structure of [Nextcloud CAD Viewer](https://github.com/ashcoft/nextcloud-cad-viewer):
-a thin PHP backend that resolves files, streams them to the browser, and stores previews, paired with a
+The app thin PHP backend that resolves files, streams them to the browser, and stores previews, paired with a
 Vue 3 front end that does all rendering client-side.
 
 - **Supported formats:** PSD, PSB, PNG, JPEG, WEBP, GIF, BMP, AVIF
