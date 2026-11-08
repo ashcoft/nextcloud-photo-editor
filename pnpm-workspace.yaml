@@ -10,7 +10,8 @@ overrides:
   # Security: minimatch < 11.0.1 has a globparts amplification DoS
   # (GHSA-g3hv-75wg-m249). Only the 11.x line is patched, and the consumers
   # that pull it in (webdav, glob, eslint, test-exclude) pin ^9/^10, so the
-  # range is lifted to the patched line.
+  # range is lifted to the patched line. They use only the APIs 11 keeps
+  # (Minimatch, minimatch(), GLOBSTAR, escape, unescape), so the lift is safe.
   'minimatch@<11.0.1': '^11.0.1'
 
 # allowBuilds replaces onlyBuiltDependencies/ignoredBuiltDependencies, and

@@ -63,11 +63,20 @@ describe('dependency security overrides', () => {
 
   it('keeps the override that enforces the minimatch floor', () => {
     // The override is what holds the consumers pinned to ^9/^10 on the patched
-    // line; without it they resolve the vulnerable 9.0.9 / 10.2.6 again.
+    // line; without it they resolve the vulnerable 9.0.9 / 10.2.6 again. Check
+    // the target range too, not just the selector: repointing it at a
+    // vulnerable range must fail even while the committed lockfile still holds
+    // the current resolutions.
     const start = lockfile.indexOf('overrides:')
     const end = lockfile.indexOf('importers:', start)
     expect(start).toBeGreaterThan(-1)
     const overrides = lockfile.slice(start, end === -1 ? undefined : end)
-    expect(overrides).toContain('minimatch@<11.0.1')
+
+    const mapping = overrides.match(/minimatch@<[\d.]+:\s*(\S+)/)
+    expect(mapping).not.toBeNull()
+    const target = mapping![1]
+    const floor = target.match(/\d+\.\d+\.\d+/)?.[0]
+    expect(floor).toBeDefined()
+    expect(isBelow(floor!, MINIMATCH_FIRST_PATCHED)).toBe(false)
   })
 })
