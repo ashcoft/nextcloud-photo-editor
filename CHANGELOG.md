@@ -1,3 +1,17 @@
+# [1.1.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.0.0...v1.1.0) (2026-11-08)
+
+
+### Bug Fixes
+
+* address four bugs found in the re-review ([aa117f9](https://github.com/ashcoft/nextcloud-photo-editor/commit/aa117f96e5b6b9677d460980833f7a68c4af4be5))
+* **deps:** keep TypeScript 7 working with the TS 6 compiler API ([05f2ed6](https://github.com/ashcoft/nextcloud-photo-editor/commit/05f2ed6ecb76872ef94946f3789d7d84503c8ba7))
+* **deps:** migrate pnpm settings to pnpm-workspace.yaml for v12 ([73b52c9](https://github.com/ashcoft/nextcloud-photo-editor/commit/73b52c963a073a9e86fb8343bcc9955f61f8de71))
+* **deps:** pin the typescript alias to the TS 6 compat package ([ceb4c44](https://github.com/ashcoft/nextcloud-photo-editor/commit/ceb4c4435fe852e155702846b12e3fc7a88013e5))
+* **deps:** update dependency vue to v3.5.44 ([58a5706](https://github.com/ashcoft/nextcloud-photo-editor/commit/58a570671c4b2abe1720d8ed44d61ef6f96f250d))
+* point the repository URL at the renamed GitHub repo ([293bb89](https://github.com/ashcoft/nextcloud-photo-editor/commit/293bb8913a0ef220bf32213b075ed1d7296a413a))
+* stop the release-age guard from breaking the dependency bots ([e4dbbbb](https://github.com/ashcoft/nextcloud-photo-editor/commit/e4dbbbb2d8dbe5dcf64bb1fe841f10729776c0d3))
+* stop the release-age guard from breaking the dependency bots ([b5fd760](https://github.com/ashcoft/nextcloud-photo-editor/commit/b5fd7603d41edbcf723b14b924ba31a51f83e784))
+
 # 1.0.0 (2026-11-06)
 
 
