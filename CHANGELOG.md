@@ -1,3 +1,18 @@
+# [1.4.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.3.0...v1.4.0) (2026-11-08)
+
+
+### Bug Fixes
+
+* address the remaining analysis findings ([ce2322e](https://github.com/ashcoft/nextcloud-photo-editor/commit/ce2322e559081ac37c03163259a79fab3792eebd))
+* address the review findings ([70487b7](https://github.com/ashcoft/nextcloud-photo-editor/commit/70487b762975b8314c3143e615cd23869dede9eb))
+* correct the PSB layout and the remaining review findings ([16cb3dc](https://github.com/ashcoft/nextcloud-photo-editor/commit/16cb3dcc9c80c65b2d8d982346ca3c6f5779f9c8))
+* keep SonarCloud off the vendored editor and simplify the PSD check ([80f5bff](https://github.com/ashcoft/nextcloud-photo-editor/commit/80f5bff6648ef6e1da0329effc5d6c9564118680))
+
+
+### Features
+
+* replace the editor with the embedded PhotoCraft app ([9632098](https://github.com/ashcoft/nextcloud-photo-editor/commit/963209875e137e039f01f975e336339ef4520571))
+
 # [1.3.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.2.0...v1.3.0) (2026-11-08)
 
 
