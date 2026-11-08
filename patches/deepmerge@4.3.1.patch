@@ -1,0 +1,108 @@
+diff --git a/dist/cjs.js b/dist/cjs.js
+index 7c36cbdd06cc22c92d590be3f87a08a91ca06b40..659d478db698f0479d0fe12035788e0329a2dc40 100644
+--- a/dist/cjs.js
++++ b/dist/cjs.js
+@@ -69,6 +69,15 @@ function propertyIsOnObject(object, property) {
+ 	}
+ }
+ 
++// `__proto__` is never a legitimate data key, and assigning it writes
++// the prototype rather than an own property. Reject it by name,
++// independently of the target's shape: propertyIsUnsafe() below only sees
++// it when the target is a plain object, so a null-prototype target or a
++// null placeholder would let it through.
++function propertyIsForbidden(key) {
++	return key === '__proto__'
++}
++
+ // Protects from prototype poisoning and unexpected merging up the prototype chain.
+ function propertyIsUnsafe(target, key) {
+ 	return propertyIsOnObject(target, key) // Properties are safe to merge if they don't exist in the target yet,
+@@ -80,11 +89,14 @@ function mergeObject(target, source, options) {
+ 	var destination = {};
+ 	if (options.isMergeableObject(target)) {
+ 		getKeys(target).forEach(function(key) {
++			if (propertyIsForbidden(key)) {
++				return
++			}
+ 			destination[key] = cloneUnlessOtherwiseSpecified(target[key], options);
+ 		});
+ 	}
+ 	getKeys(source).forEach(function(key) {
+-		if (propertyIsUnsafe(target, key)) {
++		if (propertyIsForbidden(key) || propertyIsUnsafe(target, key)) {
+ 			return
+ 		}
+ 
+diff --git a/dist/umd.js b/dist/umd.js
+index 4071e7c56ec8e5273fe166f6e723ac460fab8b72..31439f31a264f83cebca05d285f2eff018875d36 100644
+--- a/dist/umd.js
++++ b/dist/umd.js
+@@ -73,6 +73,15 @@
+ 		}
+ 	}
+ 
++	// `__proto__` is never a legitimate data key, and assigning it writes
++	// the prototype rather than an own property. Reject it by name,
++	// independently of the target's shape: propertyIsUnsafe() below only sees
++	// it when the target is a plain object, so a null-prototype target or a
++	// null placeholder would let it through.
++	function propertyIsForbidden(key) {
++		return key === '__proto__'
++	}
++
+ 	// Protects from prototype poisoning and unexpected merging up the prototype chain.
+ 	function propertyIsUnsafe(target, key) {
+ 		return propertyIsOnObject(target, key) // Properties are safe to merge if they don't exist in the target yet,
+@@ -84,11 +93,14 @@
+ 		var destination = {};
+ 		if (options.isMergeableObject(target)) {
+ 			getKeys(target).forEach(function(key) {
++				if (propertyIsForbidden(key)) {
++					return
++				}
+ 				destination[key] = cloneUnlessOtherwiseSpecified(target[key], options);
+ 			});
+ 		}
+ 		getKeys(source).forEach(function(key) {
+-			if (propertyIsUnsafe(target, key)) {
++			if (propertyIsForbidden(key) || propertyIsUnsafe(target, key)) {
+ 				return
+ 			}
+ 
+diff --git a/index.js b/index.js
+index 77968aed5d456cccc294f60912ef381fa1e52a7b..6672ffd5d9342c01294eb1153a5268533cdf6092 100644
+--- a/index.js
++++ b/index.js
+@@ -44,6 +44,15 @@ function propertyIsOnObject(object, property) {
+ 	}
+ }
+ 
++// `__proto__` is never a legitimate data key, and assigning it writes
++// the prototype rather than an own property. Reject it by name,
++// independently of the target's shape: propertyIsUnsafe() below only sees
++// it when the target is a plain object, so a null-prototype target or a
++// null placeholder would let it through.
++function propertyIsForbidden(key) {
++	return key === '__proto__'
++}
++
+ // Protects from prototype poisoning and unexpected merging up the prototype chain.
+ function propertyIsUnsafe(target, key) {
+ 	return propertyIsOnObject(target, key) // Properties are safe to merge if they don't exist in the target yet,
+@@ -55,11 +64,14 @@ function mergeObject(target, source, options) {
+ 	var destination = {}
+ 	if (options.isMergeableObject(target)) {
+ 		getKeys(target).forEach(function(key) {
++			if (propertyIsForbidden(key)) {
++				return
++			}
+ 			destination[key] = cloneUnlessOtherwiseSpecified(target[key], options)
+ 		})
+ 	}
+ 	getKeys(source).forEach(function(key) {
+-		if (propertyIsUnsafe(target, key)) {
++		if (propertyIsForbidden(key) || propertyIsUnsafe(target, key)) {
+ 			return
+ 		}
+ 

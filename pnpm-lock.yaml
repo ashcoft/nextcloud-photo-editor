@@ -166,6 +166,9 @@ overrides:
   '@babel/core': ^8.0.0
   minimatch@<11.0.1: ^11.0.1
 
+patchedDependencies:
+  deepmerge@4.3.1: dc34ed511d2dc9da327749396152d97d4a27f02541d8ba50b414a4852e4f84a7
+
 importers:
 
   .:
@@ -246,6 +249,9 @@ importers:
       css-loader:
         specifier: ^7.1.2
         version: 7.1.5(webpack@5.112.2)
+      deepmerge:
+        specifier: ^4.3.1
+        version: 4.3.1(patch_hash=dc34ed511d2dc9da327749396152d97d4a27f02541d8ba50b414a4852e4f84a7)
       eslint:
         specifier: ^10.14.0
         version: 10.14.0(jiti@2.6.1)(supports-color@8.1.1)
@@ -7628,7 +7634,7 @@ snapshots:
 
   deep-is@0.1.4: {}
 
-  deepmerge@4.3.1: {}
+  deepmerge@4.3.1(patch_hash=dc34ed511d2dc9da327749396152d97d4a27f02541d8ba50b414a4852e4f84a7): {}
 
   delayed-stream@1.0.0: {}
 
@@ -8401,7 +8407,7 @@ snapshots:
       babel-jest: 30.5.2(@babel/core@8.1.0)
       chalk: 4.1.2
       ci-info: 4.4.0
-      deepmerge: 4.3.1
+      deepmerge: 4.3.1(patch_hash=dc34ed511d2dc9da327749396152d97d4a27f02541d8ba50b414a4852e4f84a7)
       glob: 13.0.7
       graceful-fs: 4.2.11
       jest-circus: 30.5.2
