@@ -522,14 +522,10 @@ class FileController extends Controller
 
         // Version 1 is PSD, 2 is PSB; the extension has to agree, or a PSD
         // could be written into a .psb and read back as the wrong format.
-        if ($isPsb ? $version !== 2 : $version !== 1) {
-            return false;
-        }
+        $versionMatches = $isPsb ? $version === 2 : $version === 1;
 
         // The six reserved bytes are zero in every valid document.
-        if (substr($binary, 6, 6) !== "\0\0\0\0\0\0") {
-            return false;
-        }
+        $reservedIsZero = substr($binary, 6, 6) === "\0\0\0\0\0\0";
 
         $channels = unpack('n', substr($binary, 12, 2))[1];
         $height = unpack('N', substr($binary, 14, 4))[1];
@@ -538,7 +534,9 @@ class FileController extends Controller
 
         // PSD allows 1-56 channels, 1/8/16/32 bits per channel, and at least
         // one pixel; the edge and pixel caps are the ones the raster path uses.
-        return $channels >= 1
+        return $versionMatches
+            && $reservedIsZero
+            && $channels >= 1
             && $channels <= 56
             && in_array($depth, [1, 8, 16, 32], true)
             && $width >= 1

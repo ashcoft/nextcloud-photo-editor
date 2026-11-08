@@ -61,15 +61,21 @@ export class PhotocraftBridge {
   async ready(): Promise<void> {
     const deadline = Date.now() + READY_TIMEOUT_MS
 
-    while (Date.now() < deadline) {
+    // A poll rather than a fixed delay: the bundle's HTML load event fires
+    // before the WASM application installs its drop handlers.
+    const poll = async (): Promise<void> => {
       const document = this.frame.contentDocument
       if (document && this.dropTarget(document) !== null && !document.getElementById('photocraft_loading')) {
         return
       }
+      if (Date.now() >= deadline) {
+        throw new Error('The editor did not finish loading.')
+      }
       await delay(READY_POLL_MS)
+      return poll()
     }
 
-    throw new Error('The editor did not finish loading.')
+    return poll()
   }
 
   /**
