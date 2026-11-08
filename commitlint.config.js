@@ -1,18 +1,9 @@
-const coreRules = require('@commitlint/rules').default;
+const coreRules = require('@commitlint/rules').default
 /*
- * Dependabot writes its own commit subject and there is no option to reword it:
- *
- *   chore(actions): Bump github/codeql-action/init from f3bbb056... to 33d7b85...
- *
- * That subject is start-case, so it fails `subject-case`, and because it
- * carries both full SHAs the header runs past 100 characters, so it also fails
- * `header-max-length`. Neither is something a contributor wrote, and neither
- * can be fixed from this repository.
- *
- * Only those two rules are relaxed, and only for the updater's own commits.
- * Everything else — the type, the scope, the body, the footer, the blank-line
- * rules — still applies, so a bump commit that is malformed in any other way is
- * still rejected. A blanket `ignores` entry would have skipped every rule.
+ * Dependabot's generated subject is start-case and, carrying both full SHAs, runs
+ * past 100 characters. Neither can be reworded from here, so `subject-case` and
+ * `header-max-length` are relaxed for the updater's commits only; every other rule
+ * still applies, so a bump commit malformed in any other way is still rejected.
  */
 const BOT_COMMIT = /^chore\((deps|actions)\): Bump /;
 
