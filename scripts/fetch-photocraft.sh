@@ -25,7 +25,8 @@ work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 
 echo "Downloading ${url}"
-curl -fsSL "${url}" -o "${work}/photocraft-web.zip"
+# Pin the protocol so a redirect cannot downgrade the download to plain HTTP.
+curl -fsSL --proto '=https' --tlsv1.2 "${url}" -o "${work}/photocraft-web.zip"
 
 actual="$(sha256sum "${work}/photocraft-web.zip" | cut -d' ' -f1)"
 if [[ "${actual}" != "${PHOTOCRAFT_SHA256}" ]]; then

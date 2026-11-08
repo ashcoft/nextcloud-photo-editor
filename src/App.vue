@@ -37,13 +37,13 @@
     </header>
 
     <div class="photo-editor-body">
-      <p v-if="status === 'loading'" class="photo-editor-status" role="status">
+      <output v-if="status === 'loading'" class="photo-editor-status">
         {{ appTranslation('Loading the editor…') }}
-      </p>
+      </output>
       <p v-else-if="status === 'error'" class="photo-editor-status photo-editor-status--error" role="alert">
         {{ errorMessage }}
       </p>
-      <p v-if="statusMessage" class="photo-editor-status" role="status">{{ statusMessage }}</p>
+      <output v-if="statusMessage" class="photo-editor-status">{{ statusMessage }}</output>
 
       <!--
         The editor fills the frame and is kept mounted once loaded: remounting
@@ -196,10 +196,6 @@ export default defineComponent({
       URL.revokeObjectURL(url)
     }
 
-    function exitEditor(): void {
-      window.location.href = generateUrl('/apps/files')
-    }
-
     /**
      * The iframe loaded its document; connect the bridge and hand it the file.
      *
@@ -287,10 +283,15 @@ export default defineComponent({
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
     reader.onerror = () => reject(reader.error ?? new Error('Could not read the file.'))
     reader.readAsDataURL(blob)
   })
+}
+
+/** Return to the Files app. */
+function exitEditor(): void {
+  window.location.href = generateUrl('/apps/files')
 }
 </script>
 
