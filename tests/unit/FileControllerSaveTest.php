@@ -237,20 +237,27 @@ class FileControllerSaveTest extends TestCase
     }
 
     /**
-     * A structurally valid PSD as a data URL, with a 2x2 raw image.
+     * A structurally valid PSD or PSB as a data URL, with a 2x2 raw image.
      *
      * The header, the three length-prefixed sections and the image-data
      * compression tag are what the save path validates, so the fixture has to
-     * be a real document rather than a header alone.
+     * be a real document rather than a header alone. PSB widens the layer and
+     * mask length to 8 bytes - the other two sections stay 4 - so the fixture
+     * has to follow the version it declares, or it would not be a document any
+     * reader accepts.
      */
     private function psdDataUrl(int $width = 2, int $height = 2, int $version = 1): string
     {
         $header = '8BPS' . pack('n', $version) . str_repeat("\0", 6)
             . pack('n', 3) . pack('N', $height) . pack('N', $width) . pack('n', 8) . pack('n', 3);
 
-        // Colour mode data, image resources, layer and mask information: all
-        // empty, then the image data's raw compression tag and pixels.
-        $body = pack('N', 0) . pack('N', 0) . pack('N', 0) . pack('n', 0)
+        $colourMode = pack('N', 0);
+        $resources = pack('N', 0);
+        $layerAndMask = $version === 2
+            ? pack('N', 0) . pack('N', 0)  // 8-byte PSB length
+            : pack('N', 0);
+
+        $body = $colourMode . $resources . $layerAndMask . pack('n', 0)
             . str_repeat("\xff", $width * $height * 3);
 
         return 'data:image/vnd.adobe.photoshop;base64,' . base64_encode($header . $body);

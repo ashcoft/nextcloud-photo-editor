@@ -551,20 +551,23 @@ class FileController extends Controller
         // on; a section that runs past the end means a truncated file, which
         // must not replace the original.
         return $headerIsValid
-            && $this->photoshopSectionsFit($binary, $channels, $width, $height, $depth);
+            && $this->photoshopSectionsFit($binary, $isPsb, $channels, $width, $height, $depth);
     }
 
     /**
      * Whether every PSD section the header describes is present.
      *
      * Layout after the 26-byte header: colour mode data (4-byte length), image
-     * resources (4), layer and mask information (4), then the image data
-     * (2-byte compression tag plus the pixels). A raw image's length follows
-     * from the header, so it is required in full; a compressed one cannot be
-     * sized without decoding, so only the tag is required.
+     * resources (4), layer and mask information (4 for PSD, 8 for PSB), then
+     * the image data (2-byte compression tag plus the pixels). The reader in
+     * `src/editor/psd/parser.ts` uses the same widths, so the two agree on what
+     * a valid document is. A raw image's length follows from the header, so it
+     * is required in full; a compressed one cannot be sized without decoding,
+     * so only the tag is required.
      */
     private function photoshopSectionsFit(
         string $binary,
+        bool $isPsb,
         int $channels,
         int $width,
         int $height,
@@ -573,16 +576,29 @@ class FileController extends Controller
         $offset = 26;
         $length = strlen($binary);
 
-        // Three length-prefixed sections.
-        foreach ([0, 1, 2] as $section) {
-            if ($offset + 4 > $length) {
+        // Colour mode data and image resources are always 4-byte lengths.
+        foreach ([4, 4] as $lengthFieldSize) {
+            if ($offset + $lengthFieldSize > $length) {
                 return false;
             }
             $sectionLength = unpack('N', substr($binary, $offset, 4))[1];
-            $offset += 4 + $sectionLength;
+            $offset += $lengthFieldSize + $sectionLength;
             if ($offset > $length) {
                 return false;
             }
+        }
+
+        // The layer and mask section is the one PSB widens to 64 bits.
+        $layerMaskFieldSize = $isPsb ? 8 : 4;
+        if ($offset + $layerMaskFieldSize > $length) {
+            return false;
+        }
+        $layerMaskLength = $isPsb
+            ? $this->readUint64(substr($binary, $offset, 8))
+            : unpack('N', substr($binary, $offset, 4))[1];
+        $offset += $layerMaskFieldSize + $layerMaskLength;
+        if ($offset > $length) {
+            return false;
         }
 
         // The image data section starts with its compression tag.
@@ -597,10 +613,31 @@ class FileController extends Controller
             return true;
         }
 
-        // Raw: one sample per channel per pixel, one byte per 8 bits of depth.
-        $bytesPerSample = max(1, intdiv($depth, 8));
+        // Raw: one sample per channel per pixel. Depth 1 packs eight pixels per
+        // byte, so its row is rounded up rather than counted per pixel.
+        $rowBytes = $depth === 1
+            ? intdiv($width + 7, 8)
+            : $width * max(1, intdiv($depth, 8));
 
-        return $offset + 2 + $channels * $width * $height * $bytesPerSample <= $length;
+        return $offset + 2 + $channels * $rowBytes * $height <= $length;
+    }
+
+    /**
+     * Read a big-endian unsigned 64-bit length.
+     *
+     * `unpack('J')` is 64-bit native, which PHP on a 32-bit build cannot give,
+     * so the two halves are combined. A length above the platform's integer
+     * range would be a document far larger than the caps allow, so it is
+     * reported as over the limit rather than wrapped.
+     */
+    private function readUint64(string $bytes): int
+    {
+        $parts = unpack('Nhigh/Nlow', $bytes);
+        if ($parts['high'] > 0x7fffffff) {
+            return PHP_INT_MAX;
+        }
+
+        return ($parts['high'] << 32) | $parts['low'];
     }
 
     /**

@@ -5,7 +5,7 @@
   <summary>Edit photos and open PSD files in Nextcloud</summary>
   <description><![CDATA[A native Nextcloud app for editing raster photos and opening Photoshop PSD documents, built in the spirit of [PhotoCraft](https://github.com/storytold/photocraft) - an open-source, clean-room image editor.
 
-**Supported formats:** PSD, PSB, PNG, JPEG, WEBP, GIF, BMP, AVIF
+**Supported formats:** PSD, PSB, PNG, JPEG, WEBP, GIF, BMP
 
 **Features:**
 - Open layered PSD and PSB documents and browse their layer tree

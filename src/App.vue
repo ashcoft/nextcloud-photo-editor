@@ -111,12 +111,19 @@ export default defineComponent({
      * Whether the host can store what the editor produced.
      *
      * The target has to be a Photoshop document for a Photoshop output, and
-     * the user has to be allowed to write it.
+     * the user has to be allowed to write it. PSB is included: PhotoCraft
+     * emits the PSD MIME for both, and the server accepts it for a `.psb`
+     * target by the document's own version field.
      */
     function shouldIntercept(output: { name: string; type: string }): boolean {
+      const photoshopTypes = [
+        'image/vnd.adobe.photoshop',
+        'image/vnd.adobe.photoshop-large',
+      ]
+
       return canSave.value
         && isPsdFile.value
-        && output.type === 'image/vnd.adobe.photoshop'
+        && photoshopTypes.includes(output.type)
     }
 
     /**

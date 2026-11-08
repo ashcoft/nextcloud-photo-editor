@@ -50,9 +50,12 @@ jobs:
           # diff below does.
           bash scripts/fetch-photocraft.sh
 
-          if ! git diff --quiet -- photocraft; then
+          # `git diff` alone misses untracked files, so a release that adds a
+          # new asset would look like a match while the committed bundle was
+          # incomplete. `status --porcelain` reports both.
+          if [ -n "$(git status --porcelain -- photocraft)" ]; then
             echo "::error::the committed bundle does not match the pinned release; run scripts/fetch-photocraft.sh and commit the result"
-            git --no-pager diff --stat -- photocraft
+            git status --porcelain -- photocraft
             exit 1
           fi
 

@@ -347,12 +347,19 @@ test.describe('embedded PhotoCraft editor', () => {
       }
     })
 
+    // The host declines, so the editor's own download runs. Waiting for that
+    // download is the positive signal that the save actually completed, rather
+    // than a fixed delay that a slow conversion could outlast.
+    const download = page.waitForEvent('download', { timeout: 60_000 })
+
     await frame.locator('body').click({ position: { x: 400, y: 300 } })
     await page.keyboard.press('Control+s')
-    await page.waitForTimeout(4_000)
 
-    // PhotoCraft always saves a PSD, and a PSD cannot replace a PNG: the host
-    // declines, so the editor's own download runs instead of a write-back.
+    const file = await download
+    expect(file.suggestedFilename()).toBe('holiday.psd')
+
+    // PhotoCraft always saves a PSD, and a PSD cannot replace a PNG, so no
+    // write-back was attempted.
     expect(saved).toBe(false)
   })
 
