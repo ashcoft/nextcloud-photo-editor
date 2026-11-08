@@ -51,11 +51,13 @@ class Application extends App implements IBootstrap
     /**
      * Formats the editor can write back.
      *
-     * A browser canvas only encodes PNG and JPEG reliably; GIF, BMP and AVIF
-     * fall back to PNG bytes, which would be written into a file still named
-     * `.gif`. Those formats are opened read-only and offered through Export.
+     * PhotoCraft saves a layered PSD for a Photoshop document and a PNG or
+     * JPEG for a raster one, so those are the formats that round-trip. The
+     * other raster formats the editor opens (WEBP, GIF, BMP, AVIF) are offered
+     * through Export instead: saving one would replace the file with different
+     * bytes under its original extension.
      */
-    public const SAVEABLE_EXTENSIONS = ['png', 'jpg', 'jpeg'];
+    public const SAVEABLE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'psd', 'psb'];
 
     public const PSD_EXTENSIONS = ['psd', 'psb'];
 

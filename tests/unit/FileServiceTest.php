@@ -149,11 +149,23 @@ class FileServiceTest extends TestCase
         $this->assertFalse($description['isPsd']);
     }
 
-    public function testMarksAPsdAsNotSaveable(): void
+    public function testMarksAPsdAsSaveable(): void
     {
         $description = $this->service($this->file('art.psd'))->describe($this->file('art.psd'));
 
         $this->assertTrue($description['isPsd']);
+        // PhotoCraft writes a layered PSD back, so a Photoshop document is no
+        // longer read-only.
+        $this->assertTrue($description['canSave']);
+    }
+
+    public function testMarksAnUnsupportedRasterAsNotSaveable(): void
+    {
+        // WEBP is opened but not written back: PhotoCraft exports it instead,
+        // because a save would replace it with different bytes under the same
+        // extension.
+        $description = $this->service($this->file('art.webp'))->describe($this->file('art.webp'));
+
         $this->assertFalse($description['canSave']);
     }
 
