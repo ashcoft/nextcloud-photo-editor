@@ -1,5 +1,17 @@
 # Photo Editor
 
+[![Latest Release](https://img.shields.io/github/v/release/ashcoft/nextcloud-photo-editor)](https://github.com/ashcoft/nextcloud-photo-editor/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Nextcloud Version](https://img.shields.io/badge/Nextcloud-34--35-blue)](https://nextcloud.com)
+[![PHP Version](https://img.shields.io/badge/PHP-8.4-purple)](https://php.net)
+[![Node Version](https://img.shields.io/badge/Node-%E2%89%A524-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+[![Powered by PhotoCraft](https://img.shields.io/badge/Powered%20by-PhotoCraft-2f7bf5)](https://github.com/storytold/photocraft)
+
+[![Node tests](https://img.shields.io/github/actions/workflow/status/ashcoft/nextcloud-photo-editor/node-test.yml?label=tests)](https://github.com/ashcoft/nextcloud-photo-editor/actions/workflows/node-test.yml)
+[![E2E tests](https://img.shields.io/github/actions/workflow/status/ashcoft/nextcloud-photo-editor/e2e.yml?label=e2e)](https://github.com/ashcoft/nextcloud-photo-editor/actions/workflows/e2e.yml)
+[![Coverage](https://codecov.io/gh/ashcoft/nextcloud-photo-editor/branch/main/graph/badge.svg)](https://codecov.io/gh/ashcoft/nextcloud-photo-editor)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=ashcoft_photo-editor&metric=alert_status)](https://sonarcloud.io/dashboard?id=ashcoft_photo-editor)
+
 A native Nextcloud app for editing photos and Photoshop PSD documents, built on
 [PhotoCraft](https://github.com/storytold/photocraft) — an open-source, clean-room reimplementation of
 Adobe Photoshop in Rust.
@@ -28,12 +40,15 @@ Everything PhotoCraft offers, in the browser:
 
 ### Integration
 
-- **Open with Photo Editor** file action in the Files app
+- A Photoshop document opens in the editor on a single click: the app is its default viewer
+- Other images open through **Open with Photo Editor** in the file's actions menu, so Nextcloud's
+  own viewer stays the default for them
 - The file is handed to the editor through the same drop interface a drag uses, so no temporary copy
   is written to the server
 - **Save** writes the editor's output back to the file under the etag lock, so a stale editor cannot
   overwrite someone else's work
-- **Export** downloads a copy without touching the stored file
+- **Export** inside the editor downloads a copy without touching the stored file; the app only takes
+  over a produced file it can store (a Photoshop document for a Photoshop target)
 - Preview thumbnails in the Files grid: the browser renders them for PSD files and caches them
   server-side, while raster formats keep using Nextcloud's own previews
 - Start page with recent images
