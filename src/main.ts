@@ -5,21 +5,23 @@
 
 import { registerFileAction } from '@nextcloud/files'
 import { translate as t } from '@nextcloud/l10n'
-import { createPhotoEditorFileAction } from './fileActions'
+import { createPhotoEditorFileActions } from './fileActions'
 import { mountEditorApp, mountStartPage } from './mount'
 
 /**
- * Register the "Open with Photo Editor" file action.
+ * Register the "Open with Photo Editor" file actions.
  *
- * A single registration guarded by a try/catch: the script is an init script,
- * so this module is evaluated once per page, but registering twice would throw
- * "FileAction photo-editor-open already registered".
+ * Registered in a try/catch: the script is an init script, so this module is
+ * evaluated once per page, but registering twice would throw "FileAction ...
+ * already registered".
  */
-function registerPhotoEditorFileAction(): void {
-  try {
-    registerFileAction(createPhotoEditorFileAction({ translate: t }))
-  } catch {
-    // The action is already registered; nothing else to do.
+function registerPhotoEditorFileActions(): void {
+  for (const action of createPhotoEditorFileActions({ translate: t })) {
+    try {
+      registerFileAction(action)
+    } catch {
+      // The action is already registered; nothing else to do.
+    }
   }
 }
 
@@ -60,7 +62,7 @@ function mountStandaloneApp(): void {
 }
 
 function init(): void {
-  registerPhotoEditorFileAction()
+  registerPhotoEditorFileActions()
   mountStandaloneApp()
 }
 
