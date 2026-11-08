@@ -85,6 +85,10 @@ export function mimeForExtension(extension: string): string {
     case 'jpg':
     case 'jpeg':
       return 'image/jpeg'
+    case 'psd':
+      return CANONICAL_PSD_MIME
+    case 'psb':
+      return CANONICAL_PSB_MIME
     case 'webp':
       return 'image/webp'
     case 'gif':
@@ -96,16 +100,4 @@ export function mimeForExtension(extension: string): string {
     default:
       return 'image/png'
   }
-}
-
-/**
- * Whether the browser can encode this format well enough to save it.
- *
- * `canvas.toDataURL` falls back to PNG for any type it cannot encode, so a
- * save of a GIF, BMP or AVIF would write PNG bytes into a file that still
- * carries the original extension. Those formats stay read-only in the editor
- * and are offered through Export instead.
- */
-export function isServerEncodable(extension: string): boolean {
-  return extension === 'png' || extension === 'jpg' || extension === 'jpeg'
 }

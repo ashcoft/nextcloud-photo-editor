@@ -1,11 +1,14 @@
 # Photo Editor
 
-A native Nextcloud app for editing photos and opening Photoshop PSD documents, in the spirit of
-[PhotoCraft](https://github.com/storytold/photocraft) — an open-source, clean-room image editor.
+A native Nextcloud app for editing photos and Photoshop PSD documents, built on
+[PhotoCraft](https://github.com/storytold/photocraft) — an open-source, clean-room reimplementation of
+Adobe Photoshop in Rust.
 
 The app follows the structure of [Nextcloud CAD Viewer](https://github.com/ashcoft/nextcloud-cad-viewer):
 a thin PHP backend that resolves files, streams them to the browser, and stores previews, paired with a
-Vue 3 front end that does all rendering client-side.
+Vue 3 front end. The editor itself is PhotoCraft's web build, embedded in an iframe and driven by a small
+bridge, so layers, masks, adjustment layers, type, vectors, brushes and PSD read/write come from upstream
+rather than from code maintained here.
 
 - **Supported formats:** PSD, PSB, PNG, JPEG, WEBP, GIF, BMP, AVIF
 - **Nextcloud:** 34 – 35
@@ -13,38 +16,32 @@ Vue 3 front end that does all rendering client-side.
 
 ## Features
 
-### PSD and PSB
-
-- Opens layered PSD and PSB documents, including 16- and 32-bit files
-- Renders the merged image Photoshop stored in the file, so effects the editor does not model still appear
-- Falls back to a real layer composite (bounds, opacity, blend mode, visibility) when there is no merged image
-- Shows the layer tree with names, blend modes and group nesting
-- Handles raw, RLE (PackBits) and ZIP channel compression, with and without prediction
-
 ### Editing
 
-- Colour adjustments: brightness, contrast, saturation, exposure, temperature, hue, gamma
-- Filters: grayscale, sepia, invert, blur, sharpen, auto contrast
-- Transforms: crop, rotate 90/180/270, flip, resize
-- Undo/redo history over the last 100 edits, with a reset that discards every change at once
+Everything PhotoCraft offers, in the browser:
 
-Every edit is non-destructive: the decoded source is never modified, and rendering is a pure function
-of the source plus the current edit state. That is what makes undo and the live preview cheap.
+- Layers, groups, masks, clipping masks and 27 blend modes
+- 16 adjustment layers, including Curves with per-channel editing and Levels with a live histogram
+- Layer styles, editable type, vector shapes and a full brush engine
+- Selections, filters with live preview, free transform and a full history
+- 8, 16 and 32-bit documents in RGB, Grayscale, CMYK and Lab
 
 ### Integration
 
 - **Open with Photo Editor** file action in the Files app
+- The file is handed to the editor through the same drop interface a drag uses, so no temporary copy
+  is written to the server
+- **Save** writes the editor's output back to the file under the etag lock, so a stale editor cannot
+  overwrite someone else's work
+- **Export** downloads a copy without touching the stored file
 - Preview thumbnails in the Files grid: the browser renders them for PSD files and caches them
   server-side, while raster formats keep using Nextcloud's own previews
 - Start page with recent images
-- Save back to PNG and JPEG, with optimistic-concurrency protection; the other formats it opens
-  are exported instead, because a canvas re-encodes them as PNG
-- Export the current view as a download
 - Admin settings for theme, previews and maximum file size
-- Dark and light themes, responsive layout, works on desktop and mobile
 
-PSD and PSB files are **read-only** in the editor: the app does not re-encode the layer stack, so a save
-would silently flatten the document. The editor offers Export instead, and the server refuses such a save.
+PSD, PSB, PNG and JPEG round-trip. The other raster formats the editor opens (WEBP, GIF, BMP, AVIF) are
+exported rather than saved in place, because a save would replace them with different bytes under their
+original extension.
 
 ## Architecture
 
@@ -53,22 +50,21 @@ appinfo/           App metadata, routes, MIME types
 lib/               PHP backend
   AppInfo/         Application bootstrap and format helpers
   Config/          App-wide settings
-  Controller/      HTTP endpoints (pages, files, admin settings)
+  Controller/      HTTP endpoints (pages, files, bundle, admin settings)
   Listener/        Load the front end, clean up thumbnails
   Migration/       Register the Photoshop MIME types
   Preview/         Serve browser-rendered previews
-  Service/         File resolution, thumbnails, recent images
+  Service/         File resolution, thumbnails, recent images, the vendored bundle
+photocraft/        Vendored PhotoCraft web build (fetched and committed)
+scripts/           fetch-photocraft.sh: download and verify a pinned release
 src/               Vue 3 front end
-  editor/psd/      PSD/PSB reader and compositor
-  editor/engine/   Adjustments, filters, transforms, history, render
-  editor/io/       Decoding and encoding
-  composables/     Editor state and behaviour
+  editor/          The bridge to the embedded editor, and format helpers
   utils/           Nextcloud API helpers
-  App.vue          Editor shell
+  App.vue          Editor host: toolbar, iframe, status
   StartPage.vue    Start page
 templates/         PHP templates the Vue components mount into
 css/               Stylesheet entry points
-tests/             PHPUnit (backend) and Jest (frontend) suites
+tests/             PHPUnit (backend), Jest (front end) and Playwright (browser) suites
 ```
 
 ### How a file is opened
@@ -77,15 +73,39 @@ tests/             PHPUnit (backend) and Jest (frontend) suites
 2. `FileController::load` resolves the id against the user's own folder, validates the type and size, and
    returns metadata plus a session-authenticated download URL.
 3. The browser fetches the bytes through that URL.
-4. `src/editor/io/loadDocument.ts` routes to the PSD reader or the browser's own image decoder.
-5. The editor renders the result into a canvas and paints it into the page.
+4. The host page hands the bytes to the embedded editor through the bridge, which dispatches the same
+   drop a user's drag would. Nothing is written to the server to open a file.
+5. `PhotocraftController::asset` serves the editor bundle itself, with `application/wasm` on the module.
 
 ### How a save works
 
-The client posts a base64 data URL of the rendered image together with the etag it loaded. The server
-takes an exclusive lock on the file, **re-checks the etag inside the lock**, and only then writes. Two
-saves based on the same version therefore cannot both succeed: the second sees the new etag and is
-refused with `409`. This is the same pattern the CAD Viewer app uses.
+The editor's Save produces a file in the browser. The bridge intercepts the download the editor would
+have started and gives the bytes to the host, which posts them as a base64 data URL together with the
+etag it loaded. The server takes an exclusive lock on the file, **re-checks the etag inside the lock**,
+and only then writes. Two saves based on the same version therefore cannot both succeed: the second sees
+the new etag and is refused with `409`. This is the same pattern the CAD Viewer app uses.
+
+A Photoshop document is accepted by its `8BPS` signature and header rather than by GD, which cannot read
+one; the dimensions, channel count and bit depth are checked against the same caps the raster path uses.
+
+## The embedded editor
+
+PhotoCraft is a Rust/WASM application, not a library, so it is integrated by embedding it rather than by
+importing an API:
+
+- `photocraft/` holds the vendored web build. `scripts/fetch-photocraft.sh` downloads the pinned release
+  and verifies its SHA-256, so the tree can be regenerated and audited.
+- `PhotocraftController` serves it, and `PhotocraftBundleService` refuses any path that would leave the
+  bundle directory.
+- `src/editor/photocraftBridge.ts` is the bridge: a drop to open a file, and an interception of the
+  editor's download to capture a save.
+
+Both directions depend on interfaces PhotoCraft does not promise to keep, so
+`tests/e2e/photocraftBridge.spec.ts` drives the real bridge against the real bundle in a browser and fails
+if a PhotoCraft upgrade changes how it accepts a drop or emits a save. **Any bump of the vendored version
+must keep that test passing.**
+
+PhotoCraft is MIT OR Apache-2.0; its licences ship in `photocraft/`.
 
 ## Requirements
 
@@ -188,6 +208,7 @@ sync by the `Update workflows` workflow.
 - Every file access goes through the user's own folder, so a file id a user cannot see is never returned
 - Downloads are session-authenticated; the client never receives a second credential
 - Saves are protected by an etag check under an exclusive lock
+- The editor bundle is served from a fixed directory, and a request path that would leave it is refused
 - Thumbnail uploads are validated by content, not by the data URL prefix, and capped in both byte size
   and decoded dimensions
 - Thumbnails can only be set by users who may modify the file
@@ -197,5 +218,6 @@ sync by the `Update workflows` workflow.
 
 MIT. See [LICENSE](LICENSE).
 
-The PSD reader in `src/editor/psd/` is written from Adobe's published PSD specification. It is an
-independent implementation and contains no Adobe code.
+The embedded editor is [PhotoCraft](https://github.com/storytold/photocraft), by Storytold and
+contributors, licensed MIT OR Apache-2.0. Its licence files and attribution ship with the vendored build
+in `photocraft/`.

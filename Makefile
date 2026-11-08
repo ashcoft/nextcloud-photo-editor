@@ -52,6 +52,9 @@ install:
 
 # `build` is phony: webpack's output is a set of files rather than one, and a
 # file target would need to enumerate them all to stay correct.
+#
+# The embedded editor is a vendored third-party build, so it is fetched (and
+# checksum-verified) before webpack runs rather than compiled here.
 build:
 	pnpm run build
 

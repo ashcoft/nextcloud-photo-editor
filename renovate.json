@@ -50,6 +50,17 @@
   "github-actions": {
     "enabled": true
   },
+  "customManagers": [
+    {
+      "description": "Track the pinned PhotoCraft web build. The version and its checksum are read from scripts/fetch-photocraft.sh; a bump PR must update both, which the script's checksum check enforces.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^scripts/fetch-photocraft\\.sh$/"],
+      "matchStrings": ["PHOTOCRAFT_VERSION=\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "storytold/photocraft",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v?(?<version>.*)$"
+    }
+  ],
   "vulnerabilityAlerts": {
     "enabled": true
   },

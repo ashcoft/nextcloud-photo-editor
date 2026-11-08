@@ -431,7 +431,7 @@ class FileController extends Controller
      */
     private function decodeImageDataUrl(string $dataUrl, string $fileName): ?array
     {
-        if (!preg_match('#^data:image/(png|jpeg|webp|gif|bmp|avif);base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $m)) {
+        if (!preg_match('#^data:image/(png|jpeg|webp|gif|bmp|avif|vnd\.adobe\.photoshop);base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $m)) {
             return null;
         }
 
@@ -444,6 +444,12 @@ class FileController extends Controller
         $binary = base64_decode($m[2], true);
         if ($binary === false || $binary === '') {
             return null;
+        }
+
+        // A Photoshop document is not a raster image, so GD cannot validate it.
+        // It is checked by its own signature and header instead.
+        if (str_ends_with(strtolower($fileName), '.psd') || str_ends_with(strtolower($fileName), '.psb')) {
+            return $this->validatePhotoshopDocument($binary, $fileName);
         }
 
         $info = @getimagesizefromstring($binary);
@@ -474,6 +480,71 @@ class FileController extends Controller
         }
 
         return ['binary' => $binary, 'mimeType' => $mimeType];
+    }
+
+    /**
+     * Validate a Photoshop document's header.
+     *
+     * A PSD/PSB is not a raster image, so `getimagesizefromstring` cannot read
+     * it and GD cannot decode it. The file header is checked instead: the
+     * signature, the version matching the extension, the channel/bit-depth
+     * ranges, and the dimensions against the same edge and pixel caps the
+     * raster path uses. That is enough to refuse anything that is not a
+     * Photoshop document, or is one no editor could have produced.
+     *
+     * @return array{binary: string, mimeType: string}|null
+     */
+    private function validatePhotoshopDocument(string $binary, string $fileName): ?array
+    {
+        // 26-byte header: 4 signature, 2 version, 6 reserved, 2 channels,
+        // 4 height, 4 width, 2 depth, 2 colour mode.
+        if (strlen($binary) < 26 || substr($binary, 0, 4) !== '8BPS') {
+            return null;
+        }
+
+        $version = unpack('n', substr($binary, 4, 2))[1];
+        $isPsb = str_ends_with(strtolower($fileName), '.psb');
+
+        // Version 1 is PSD, 2 is PSB; the extension has to agree, or a PSD
+        // could be written into a .psb and read back as the wrong format.
+        if (($isPsb && $version !== 2) || (!$isPsb && $version !== 1)) {
+            return null;
+        }
+
+        // The six reserved bytes are zero in every valid document.
+        if (substr($binary, 6, 6) !== "\0\0\0\0\0\0") {
+            return null;
+        }
+
+        $channels = unpack('n', substr($binary, 12, 2))[1];
+        $height = unpack('N', substr($binary, 14, 4))[1];
+        $width = unpack('N', substr($binary, 18, 4))[1];
+        $depth = unpack('n', substr($binary, 22, 2))[1];
+
+        // PSD allows 1-56 channels; a document with none or a wild count is
+        // not one this editor could have produced.
+        if ($channels < 1 || $channels > 56) {
+            return null;
+        }
+
+        if ($width < 1 || $height < 1) {
+            return null;
+        }
+
+        if ($width > self::MAX_IMAGE_EDGE || $height > self::MAX_IMAGE_EDGE) {
+            return null;
+        }
+
+        if ($width * $height > self::MAX_IMAGE_PIXELS) {
+            return null;
+        }
+
+        // 1, 8, 16 and 32 bits per channel are the defined depths.
+        if (!in_array($depth, [1, 8, 16, 32], true)) {
+            return null;
+        }
+
+        return ['binary' => $binary, 'mimeType' => 'image/vnd.adobe.photoshop'];
     }
 
     /**
