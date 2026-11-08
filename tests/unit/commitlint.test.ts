@@ -47,8 +47,8 @@ describe('commitlint exemption for updater commits', () => {
   })
 
   it('relaxes the rules only for the updater prefix, not for every commit', () => {
-    // Same wording, one character off the exempted scope: the start-case subject
-    // must fail again, proving the relaxation is scoped to the prefix.
+    // Same wording, one character off the exempted scope: the sentence-case
+    // subject must fail again, proving the relaxation is scoped to the prefix.
     const result = lint(DEPENDABOT_GROUP.replace('chore(deps)', 'chore(depsx)'))
     expect(result.code).not.toBe(0)
     expect(result.output).toContain('subject-case')
