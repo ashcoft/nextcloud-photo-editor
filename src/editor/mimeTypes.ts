@@ -31,10 +31,9 @@ export const RASTER_MIMES = [
   'image/webp',
   'image/gif',
   'image/bmp',
-  'image/avif',
 ] as const
 
-export const RASTER_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif']
+export const RASTER_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp']
 export const PSD_EXTENSIONS = ['psd', 'psb']
 
 const SUPPORTED_MIMES: readonly string[] = [...PSD_MIMES, ...RASTER_MIMES]
@@ -95,8 +94,6 @@ export function mimeForExtension(extension: string): string {
       return 'image/gif'
     case 'bmp':
       return 'image/bmp'
-    case 'avif':
-      return 'image/avif'
     default:
       return 'image/png'
   }

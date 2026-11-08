@@ -10,7 +10,7 @@ Vue 3 front end. The editor itself is PhotoCraft's web build, embedded in an ifr
 bridge, so layers, masks, adjustment layers, type, vectors, brushes and PSD read/write come from upstream
 rather than from code maintained here.
 
-- **Supported formats:** PSD, PSB, PNG, JPEG, WEBP, GIF, BMP, AVIF
+- **Supported formats:** PSD, PSB, PNG, JPEG, WEBP, GIF, BMP
 - **Nextcloud:** 34 – 35
 - **PHP:** 8.4+
 
@@ -39,9 +39,12 @@ Everything PhotoCraft offers, in the browser:
 - Start page with recent images
 - Admin settings for theme, previews and maximum file size
 
-PSD, PSB, PNG and JPEG round-trip. The other raster formats the editor opens (WEBP, GIF, BMP, AVIF) are
-exported rather than saved in place, because a save would replace them with different bytes under their
-original extension.
+PSD and PSB round-trip: the editor saves a layered Photoshop document, which the app writes back under
+the etag lock. The raster formats it opens (PNG, JPEG, WEBP, GIF, BMP) are opened for editing and their
+output is downloaded, because PhotoCraft saves every document as a PSD and that cannot replace a raster
+file under its own name.
+
+AVIF is not offered: the vendored PhotoCraft build documents AVIF decoding as unavailable.
 
 ## Architecture
 
@@ -85,8 +88,9 @@ etag it loaded. The server takes an exclusive lock on the file, **re-checks the 
 and only then writes. Two saves based on the same version therefore cannot both succeed: the second sees
 the new etag and is refused with `409`. This is the same pattern the CAD Viewer app uses.
 
-A Photoshop document is accepted by its `8BPS` signature and header rather than by GD, which cannot read
-one; the dimensions, channel count and bit depth are checked against the same caps the raster path uses.
+A Photoshop document is accepted by its `8BPS` signature rather than by GD, which cannot read one. The
+header's channel count and bit depth are checked against the ranges the format defines, and its
+dimensions against the same edge and pixel caps the raster path uses.
 
 ## The embedded editor
 

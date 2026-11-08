@@ -6,25 +6,9 @@
       </div>
 
       <div class="photo-editor-toolbar__group photo-editor-toolbar__group--end">
-        <button
-          v-if="canSave"
-          type="button"
-          class="button primary"
-          :disabled="saving || status !== 'ready'"
-          :title="appTranslation('Save the document back to its file')"
-          @click="onSave"
-        >
-          {{ saving ? appTranslation('Saving…') : appTranslation('Save') }}
-        </button>
-        <button
-          type="button"
-          class="button"
-          :disabled="status !== 'ready'"
-          :title="appTranslation('Download a copy of the current document')"
-          @click="onExport"
-        >
-          {{ appTranslation('Export') }}
-        </button>
+        <span v-if="saving" class="photo-editor-toolbar__status" role="status">
+          {{ appTranslation('Saving…') }}
+        </span>
         <button
           type="button"
           class="button"
@@ -109,21 +93,30 @@ export default defineComponent({
     const editorUrl = computed(() => generateUrl('/apps/photo_editor/photocraft/index.html'))
 
     /**
-     * Called when the editor produces a file, from either its Save or Export.
+     * Called when the editor produces a file the host takes over.
      *
-     * The editor's own Save is an explicit user action, so it writes straight
-     * back to the file when the file is writable; Export is left for the
-     * toolbar, which downloads the bytes without touching the stored file.
+     * PhotoCraft's Save writes a layered Photoshop document, whatever the
+     * input was, so it can only replace a Photoshop file: posting PSD bytes at
+     * a `.png` target would be refused by the server, and replacing a PNG with
+     * a PSD under its own name would be worse. For any other format the
+     * editor's own download runs instead (see `shouldIntercept`), which is what
+     * the Export button offers.
      */
     function onOutput(output: BridgeOutput): void {
       lastOutput = output
+      void onSave()
+    }
 
-      if (canSave.value && fileId !== null) {
-        void onSave()
-        return
-      }
-
-      statusMessage.value = appTranslation('The editor produced a file. Use Export to download it.')
+    /**
+     * Whether the host can store what the editor produced.
+     *
+     * The target has to be a Photoshop document for a Photoshop output, and
+     * the user has to be allowed to write it.
+     */
+    function shouldIntercept(output: { name: string; type: string }): boolean {
+      return canSave.value
+        && isPsdFile.value
+        && output.type === 'image/vnd.adobe.photoshop'
     }
 
     /**
@@ -144,10 +137,20 @@ export default defineComponent({
 
     /**
      * Write the editor's output back to the stored file.
+     *
+     * Saves are serialized: two in flight at once would carry the same etag,
+     * so the second would be refused, and the bytes and the version a save
+     * belongs to have to travel together or a thumbnail can be attached to the
+     * wrong revision.
      */
     async function onSave(): Promise<void> {
-      if (lastOutput === null || fileId === null) {
+      const output = lastOutput
+      if (output === null || fileId === null) {
         statusMessage.value = appTranslation('Make a change in the editor, then save.')
+        return
+      }
+
+      if (saving.value) {
         return
       }
 
@@ -155,7 +158,7 @@ export default defineComponent({
       statusMessage.value = appTranslation('Saving…')
 
       try {
-        const dataUrl = await blobToDataUrl(lastOutput.blob)
+        const dataUrl = await blobToDataUrl(output.blob)
         const result = await saveFile(fileId, etag, dataUrl)
 
         if (!result.ok) {
@@ -166,34 +169,16 @@ export default defineComponent({
         etag = result.etag ?? etag
         statusMessage.value = appTranslation('Saved.')
 
-        // The document changed, so its preview is stale. Re-render from the
-        // bytes just written, keyed by the new etag.
-        if (isPsdFile.value) {
-          const bytes = new Uint8Array(await lastOutput.blob.arrayBuffer())
-          void refreshThumbnail(bytes, etag)
-        }
+        // The document changed, so its preview is stale. The bytes are the ones
+        // this save wrote, and the version is the one it returned, so the
+        // thumbnail cannot describe a different revision.
+        const bytes = new Uint8Array(await output.blob.arrayBuffer())
+        void refreshThumbnail(bytes, etag)
       } catch {
         statusMessage.value = appTranslation('Could not save the file.')
       } finally {
         saving.value = false
       }
-    }
-
-    /**
-     * Download the editor's output without touching the stored file.
-     */
-    function onExport(): void {
-      if (lastOutput === null) {
-        statusMessage.value = appTranslation('Make a change in the editor, then export.')
-        return
-      }
-
-      const url = URL.createObjectURL(lastOutput.blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = lastOutput.name
-      anchor.click()
-      URL.revokeObjectURL(url)
     }
 
     /**
@@ -209,12 +194,7 @@ export default defineComponent({
       }
 
       try {
-        bridge = new PhotocraftBridge(frame, {
-          onOutput,
-          onError: (message: string) => {
-            statusMessage.value = message
-          },
-        })
+        bridge = new PhotocraftBridge(frame, { shouldIntercept, onOutput })
 
         await bridge.ready()
         bridge.install()
@@ -250,6 +230,21 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Leave the editor for the Files app.
+     *
+     * A save in flight is refused first: navigating away would abort the
+     * request and the change would be lost.
+     */
+    async function exitEditor(): Promise<void> {
+      if (saving.value) {
+        statusMessage.value = appTranslation('Saving…')
+        return
+      }
+
+      window.location.href = generateUrl('/apps/files')
+    }
+
     onBeforeUnmount(() => {
       bridge?.dispose()
     })
@@ -262,11 +257,8 @@ export default defineComponent({
       errorMessage,
       statusMessage,
       saving,
-      canSave,
       fileName,
       theme,
-      onSave,
-      onExport,
       exitEditor,
       onFrameLoad,
     }
@@ -287,11 +279,6 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     reader.onerror = () => reject(reader.error ?? new Error('Could not read the file.'))
     reader.readAsDataURL(blob)
   })
-}
-
-/** Return to the Files app. */
-function exitEditor(): void {
-  window.location.href = generateUrl('/apps/files')
 }
 </script>
 

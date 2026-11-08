@@ -73,14 +73,26 @@ class PhotocraftBundleService
     /**
      * Absolute path of a file in the bundle.
      *
+     * The real paths are compared, not the request path: a symlink inside the
+     * bundle would otherwise let a request name a file outside it, and the
+     * controller would stream that file. `normalise()` rejects `..`, but a link
+     * needs no traversal to escape.
+     *
      * @param string $path Relative path inside the bundle, e.g. `app/parts.txt`.
      * @throws NotFoundException when the path is missing or escapes the bundle.
      */
     public function resolve(string $path): string
     {
-        $absolute = $this->bundleRoot . '/' . $this->normalise($path);
+        $root = realpath($this->bundleRoot);
+        $absolute = realpath($this->bundleRoot . '/' . $this->normalise($path));
 
-        if (!is_file($absolute)) {
+        if ($root === false || $absolute === false) {
+            throw new NotFoundException('Not found');
+        }
+
+        // A prefix check alone would accept a sibling such as
+        // `/bundle-other`, so the separator is part of the comparison.
+        if (!str_starts_with($absolute, $root . DIRECTORY_SEPARATOR) || !is_file($absolute)) {
             throw new NotFoundException('Not found');
         }
 

@@ -28,7 +28,13 @@ echo "Downloading ${url}"
 # Pin the protocol so a redirect cannot downgrade the download to plain HTTP.
 curl -fsSL --proto '=https' --tlsv1.2 "${url}" -o "${work}/photocraft-web.zip"
 
-actual="$(sha256sum "${work}/photocraft-web.zip" | cut -d' ' -f1)"
+# `sha256sum` is GNU coreutils; macOS ships `shasum` instead, and a contributor
+# bumping the pin on a Mac should not have to install anything.
+if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "${work}/photocraft-web.zip" | cut -d' ' -f1)"
+else
+    actual="$(shasum -a 256 "${work}/photocraft-web.zip" | cut -d' ' -f1)"
+fi
 if [[ "${actual}" != "${PHOTOCRAFT_SHA256}" ]]; then
     echo "ERROR: checksum mismatch for photocraft-web-${PHOTOCRAFT_VERSION}.zip" >&2
     echo "  expected ${PHOTOCRAFT_SHA256}" >&2
@@ -38,14 +44,26 @@ fi
 
 unzip -q "${work}/photocraft-web.zip" -d "${work}/unpacked"
 
-rm -rf "${dest}"
-mkdir -p "${dest}"
-cp -a "${work}/unpacked/photocraft-web-${PHOTOCRAFT_VERSION}/." "${dest}/"
+source="${work}/unpacked/photocraft-web-${PHOTOCRAFT_VERSION}"
+if [[ ! -f "${source}/index.html" ]]; then
+    echo "ERROR: the archive does not contain index.html; refusing to replace the bundle" >&2
+    exit 1
+fi
+
+# Build the replacement beside the live bundle and swap it in only once it is
+# complete, so a failed download or unpack cannot leave the app without an
+# editor.
+staged="${work}/staged"
+mkdir -p "${staged}"
+cp -a "${source}/." "${staged}/"
 
 # Mirror snippets/ where the app's glue looks for it.
-if [[ -d "${dest}/snippets" && ! -d "${dest}/app/snippets" ]]; then
-    mkdir -p "${dest}/app/snippets"
-    cp -a "${dest}/snippets/." "${dest}/app/snippets/"
+if [[ -d "${staged}/snippets" && ! -d "${staged}/app/snippets" ]]; then
+    mkdir -p "${staged}/app/snippets"
+    cp -a "${staged}/snippets/." "${staged}/app/snippets/"
 fi
+
+rm -rf "${dest}"
+mv "${staged}" "${dest}"
 
 echo "PhotoCraft ${PHOTOCRAFT_VERSION} vendored into ${dest}"

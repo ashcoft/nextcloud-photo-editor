@@ -60,9 +60,7 @@ class FileControllerSaveTest extends TestCase
             ...($lockedFile === null ? [$file] : [$file, $lockedFile]),
         );
         $fileService->method('canSave')->willReturnCallback(
-            static fn (File $f): bool => $f->isUpdateable()
-                && !str_ends_with($f->getName(), '.psd')
-                && !str_ends_with($f->getName(), '.psb'),
+            static fn (File $f): bool => $f->isUpdateable(),
         );
         $fileService->method('exceedsMaxSize')->willReturn(false);
         $fileService->method('getMaxFileSize')->willReturn(50 * 1024 * 1024);
@@ -238,13 +236,103 @@ class FileControllerSaveTest extends TestCase
         $this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
     }
 
-    public function testRefusesToSaveAPsd(): void
+    /**
+     * A structurally valid PSD as a data URL, with a 2x2 raw image.
+     *
+     * The header, the three length-prefixed sections and the image-data
+     * compression tag are what the save path validates, so the fixture has to
+     * be a real document rather than a header alone.
+     */
+    private function psdDataUrl(int $width = 2, int $height = 2, int $version = 1): string
     {
-        $file = $this->imageFile(['etag-a'], 'art.psd');
-        $controller = $this->controller($file, ['image' => $this->pngDataUrl(), 'etag' => 'etag-a']);
+        $header = '8BPS' . pack('n', $version) . str_repeat("\0", 6)
+            . pack('n', 3) . pack('N', $height) . pack('N', $width) . pack('n', 8) . pack('n', 3);
+
+        // Colour mode data, image resources, layer and mask information: all
+        // empty, then the image data's raw compression tag and pixels.
+        $body = pack('N', 0) . pack('N', 0) . pack('N', 0) . pack('n', 0)
+            . str_repeat("\xff", $width * $height * 3);
+
+        return 'data:image/vnd.adobe.photoshop;base64,' . base64_encode($header . $body);
+    }
+
+    public function testSavesAValidPhotoshopDocument(): void
+    {
+        // The document must actually be written, and as Photoshop bytes.
+        $locked = $this->imageFile(['etag-a', 'etag-b'], 'art.psd');
+        $locked->expects($this->once())
+            ->method('putContent')
+            ->with($this->callback(
+                static fn (string $binary): bool => str_starts_with($binary, '8BPS'),
+            ));
+
+        $controller = $this->controller(
+            $this->imageFile(['etag-a'], 'art.psd'),
+            ['image' => $this->psdDataUrl(), 'etag' => 'etag-a'],
+            lockedFile: $locked,
+        );
 
         $response = $controller->save(42);
 
-        $this->assertSame(Http::STATUS_UNSUPPORTED_MEDIA_TYPE, $response->getStatus());
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+    }
+
+    public function testSavesAValidPsbForAPsbFile(): void
+    {
+        $controller = $this->controller(
+            $this->imageFile(['etag-a'], 'art.psb'),
+            ['image' => $this->psdDataUrl(version: 2), 'etag' => 'etag-a'],
+            lockedFile: $this->imageFile(['etag-a', 'etag-b'], 'art.psb'),
+        );
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_OK, $response->getStatus());
+    }
+
+    public function testRefusesAPsdWrittenToAPsbFile(): void
+    {
+        // The version has to match the extension, or the file would be read
+        // back as the wrong format.
+        $controller = $this->controller(
+            $this->imageFile(['etag-a'], 'art.psb'),
+            ['image' => $this->psdDataUrl(version: 1), 'etag' => 'etag-a'],
+            lockedFile: $this->imageFile(['etag-a', 'etag-b'], 'art.psb'),
+        );
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+    }
+
+    public function testRefusesATruncatedPhotoshopDocument(): void
+    {
+        // A header-only document passes the field checks but describes sections
+        // that are not there, so it must not replace the original.
+        $full = base64_decode(substr($this->psdDataUrl(), strlen('data:image/vnd.adobe.photoshop;base64,')));
+        $truncated = substr($full, 0, 40);
+
+        $controller = $this->controller(
+            $this->imageFile(['etag-a'], 'art.psd'),
+            ['image' => 'data:image/vnd.adobe.photoshop;base64,' . base64_encode($truncated), 'etag' => 'etag-a'],
+            lockedFile: $this->imageFile(['etag-a', 'etag-b'], 'art.psd'),
+        );
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+    }
+
+    public function testRefusesAPhotoshopDocumentLargerThanTheEdgeCap(): void
+    {
+        $controller = $this->controller(
+            $this->imageFile(['etag-a'], 'art.psd'),
+            ['image' => $this->psdDataUrl(20000, 1), 'etag' => 'etag-a'],
+            lockedFile: $this->imageFile(['etag-a', 'etag-b'], 'art.psd'),
+        );
+
+        $response = $controller->save(42);
+
+        $this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
     }
 }

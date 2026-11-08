@@ -42,11 +42,12 @@ class Application extends App implements IBootstrap
     /**
      * Raster formats the editor can open.
      *
-     * PSD/PSB are listed separately: they can be opened and composited but a
-     * save writes a flattened raster export rather than a layered document,
-     * because the editor does not re-encode the layer stack yet.
+     * PSD/PSB are listed separately: PhotoCraft opens and saves a layered
+     * document. AVIF is deliberately absent even though Nextcloud can preview
+     * it: the vendored PhotoCraft build documents AVIF decoding as
+     * unavailable, so the editor could not open a file it was offered.
      */
-    public const EDITABLE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif'];
+    public const EDITABLE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'];
 
     /**
      * Formats the editor can write back.
@@ -153,11 +154,12 @@ class Application extends App implements IBootstrap
     }
 
     /**
-     * Whether a file name is a raster format the editor can write back.
+     * Whether the editor can write this file back.
      *
-     * Only PNG and JPEG: a browser canvas encodes those reliably, and the
-     * other formats it decodes would otherwise be overwritten with PNG bytes
-     * under their original extension.
+     * PSD and PSB are included: PhotoCraft saves a layered Photoshop document,
+     * which replaces one. The raster formats are not, because the same save
+     * would put Photoshop bytes under a raster extension; those are opened for
+     * editing and their output is downloaded.
      */
     public static function isSaveableFile(string $fileName): bool
     {

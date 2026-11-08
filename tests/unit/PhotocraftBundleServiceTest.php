@@ -26,9 +26,15 @@ class PhotocraftBundleServiceTest extends TestCase
 {
     private string $root;
 
+    /** A directory that holds the bundle and a file outside it. */
+    private string $workDir;
+
     protected function setUp(): void
     {
-        $this->root = sys_get_temp_dir() . '/photocraft-bundle-' . bin2hex(random_bytes(6));
+        // A per-test directory: a fixed /tmp path would let concurrent runs
+        // overwrite each other's fixture.
+        $this->workDir = sys_get_temp_dir() . '/photocraft-bundle-' . bin2hex(random_bytes(6));
+        $this->root = $this->workDir . '/photocraft';
         mkdir($this->root . '/app', 0o777, true);
         file_put_contents($this->root . '/index.html', '<!doctype html>');
         file_put_contents($this->root . '/app/photocraft-web.js', 'export {}');
@@ -36,13 +42,12 @@ class PhotocraftBundleServiceTest extends TestCase
         file_put_contents($this->root . '/photocraft-web-boot_bg.wasm', 'wasm-bytes');
 
         // A file outside the bundle, to prove a traversal cannot reach it.
-        file_put_contents(dirname($this->root) . '/outside-secret.txt', 'secret');
+        file_put_contents($this->workDir . '/outside-secret.txt', 'secret');
     }
 
     protected function tearDown(): void
     {
-        $this->removeDirectory($this->root);
-        @unlink(dirname($this->root) . '/outside-secret.txt');
+        $this->removeDirectory($this->workDir);
     }
 
     private function service(): PhotocraftBundleService
@@ -106,6 +111,24 @@ class PhotocraftBundleServiceTest extends TestCase
         $this->expectException(NotFoundException::class);
 
         $this->service()->resolve($path);
+    }
+
+    /**
+     * A symlink inside the bundle must not reach outside it.
+     *
+     * `normalise()` rejects `..`, but a link needs no traversal to escape, so
+     * the real path is what has to be checked.
+     */
+    public function testRejectsASymlinkThatLeavesTheBundle(): void
+    {
+        $link = $this->root . '/escape.txt';
+        if (!@symlink($this->workDir . '/outside-secret.txt', $link)) {
+            $this->markTestSkipped('symlinks are not available here');
+        }
+
+        $this->expectException(NotFoundException::class);
+
+        $this->service()->resolve('escape.txt');
     }
 
     /**

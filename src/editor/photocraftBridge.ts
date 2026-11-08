@@ -31,10 +31,16 @@ export interface BridgeOutput {
 }
 
 export interface BridgeOptions {
-  /** Called when the editor saves or exports a file. */
+  /**
+   * Whether the host takes over a produced file.
+   *
+   * PhotoCraft's own download is allowed to proceed when this returns false,
+   * which is the right outcome when the host cannot store the output - a
+   * Photoshop document cannot be written over a PNG, for instance.
+   */
+  shouldIntercept: (output: { name: string; type: string }) => boolean
+  /** Called when the editor produces a file the host takes over. */
   onOutput: (output: BridgeOutput) => void
-  /** Called when the editor's own save produced an error. */
-  onError?: (message: string) => void
 }
 
 /**
@@ -134,7 +140,7 @@ export class PhotocraftBridge {
 
     const window = this.contentWindow()
     const blobs = new Map<string, Blob>()
-    const { onOutput } = this.options
+    const { onOutput, shouldIntercept } = this.options
 
     const originalCreate = window.URL.createObjectURL.bind(window.URL)
     window.URL.createObjectURL = (object: Blob | MediaSource): string => {
@@ -161,9 +167,16 @@ export class PhotocraftBridge {
       const blob = blobs.get(url)
 
       if (blob !== undefined && this.hasAttribute('download')) {
-        // The editor asked for a download; deliver the bytes to the host
-        // instead of the browser's download folder.
         const name = this.getAttribute('download') || 'download'
+
+        // The host only takes over a file it can store. When it cannot - the
+        // editor produced a Photoshop document but the file is a PNG - the
+        // editor's own download runs, so the user still gets their file.
+        if (!shouldIntercept({ name, type: blob.type })) {
+          originalClick.call(this)
+          return
+        }
+
         blobs.delete(url)
         originalRevoke(url)
         onOutput({ name, type: blob.type, blob })

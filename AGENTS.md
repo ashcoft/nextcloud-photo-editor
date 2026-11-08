@@ -77,6 +77,8 @@ The editor is PhotoCraft's web build, embedded in a same-origin iframe; it is no
 | File | Responsibility |
 | --- | --- |
 | `editor/photocraftBridge.ts` | Open a file in the editor, and capture what it saves |
+| `editor/psdThumbnail.ts` | Render a Files-grid preview from Photoshop bytes |
+| `editor/psd/` | PSD/PSB reader and compositor, used only for those previews |
 | `editor/mimeTypes.ts` | Extensions and MIME types the app recognises |
 
 #### Invariants to preserve

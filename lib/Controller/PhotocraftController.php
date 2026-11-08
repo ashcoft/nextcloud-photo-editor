@@ -64,18 +64,39 @@ class PhotocraftController extends Controller
         }
 
         $response = new StreamResponse($stream);
-        $response->addHeader('Content-Type', $this->bundle->contentTypeFor($path));
+        // The type comes from the file that was resolved, not the requested
+        // path: a request for the bundle root maps to `index.html`, and the
+        // empty path would otherwise be served as octet-stream.
+        $response->addHeader('Content-Type', $this->bundle->contentTypeFor($absolute));
 
         // The `.part-*` files are gzip already; the page inflates them itself.
         // Declaring the encoding here would make the browser inflate them a
         // second time and the module would fail to compile.
         $response->addHeader('X-Content-Type-Options', 'nosniff');
 
-        // The bundle is versioned by the app release, so the files may be
-        // cached, but not so long that an app upgrade keeps serving the old
-        // editor from a browser cache.
-        $response->addHeader('Cache-Control', 'public, max-age=86400');
+        // Content-hashed files may be cached indefinitely; the entry files keep
+        // their names across releases, so a cached copy would pair old
+        // JavaScript with a new module (or name a part that no longer exists)
+        // and the editor would fail to start. They revalidate instead.
+        $response->addHeader('Cache-Control', $this->cacheControlFor($path));
 
         return $response;
+    }
+
+    /**
+     * Cache policy for a bundle path.
+     *
+     * The hosting guide names `index.html`, `app/photocraft-web.js` and
+     * `app/parts.txt` as the files that keep their names, so those are the ones
+     * that must not be cached past a release.
+     */
+    private function cacheControlFor(string $path): string
+    {
+        $normalised = ltrim($path, '/');
+        $revalidating = ['index.html', 'app/photocraft-web.js', 'app/parts.txt', ''];
+
+        return in_array($normalised, $revalidating, true)
+            ? 'no-cache'
+            : 'public, max-age=31536000, immutable';
     }
 }

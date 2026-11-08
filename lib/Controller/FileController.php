@@ -431,7 +431,7 @@ class FileController extends Controller
      */
     private function decodeImageDataUrl(string $dataUrl, string $fileName): ?array
     {
-        if (!preg_match('#^data:image/(png|jpeg|webp|gif|bmp|avif|vnd\.adobe\.photoshop);base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $m)) {
+        if (!preg_match('#^data:image/(png|jpeg|webp|gif|bmp|avif|vnd\.adobe\.photoshop(?:-large)?);base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $m)) {
             return null;
         }
 
@@ -534,7 +534,7 @@ class FileController extends Controller
 
         // PSD allows 1-56 channels, 1/8/16/32 bits per channel, and at least
         // one pixel; the edge and pixel caps are the ones the raster path uses.
-        return $versionMatches
+        $headerIsValid = $versionMatches
             && $reservedIsZero
             && $channels >= 1
             && $channels <= 56
@@ -544,6 +544,63 @@ class FileController extends Controller
             && $width <= self::MAX_IMAGE_EDGE
             && $height <= self::MAX_IMAGE_EDGE
             && $width * $height <= self::MAX_IMAGE_PIXELS;
+
+        // The header alone would accept a header-only file, so the sections it
+        // describes are walked too. Their lengths are attacker-controlled, so
+        // each is checked against the bytes that remain before the offset moves
+        // on; a section that runs past the end means a truncated file, which
+        // must not replace the original.
+        return $headerIsValid
+            && $this->photoshopSectionsFit($binary, $channels, $width, $height, $depth);
+    }
+
+    /**
+     * Whether every PSD section the header describes is present.
+     *
+     * Layout after the 26-byte header: colour mode data (4-byte length), image
+     * resources (4), layer and mask information (4), then the image data
+     * (2-byte compression tag plus the pixels). A raw image's length follows
+     * from the header, so it is required in full; a compressed one cannot be
+     * sized without decoding, so only the tag is required.
+     */
+    private function photoshopSectionsFit(
+        string $binary,
+        int $channels,
+        int $width,
+        int $height,
+        int $depth,
+    ): bool {
+        $offset = 26;
+        $length = strlen($binary);
+
+        // Three length-prefixed sections.
+        foreach ([0, 1, 2] as $section) {
+            if ($offset + 4 > $length) {
+                return false;
+            }
+            $sectionLength = unpack('N', substr($binary, $offset, 4))[1];
+            $offset += 4 + $sectionLength;
+            if ($offset > $length) {
+                return false;
+            }
+        }
+
+        // The image data section starts with its compression tag.
+        if ($offset + 2 > $length) {
+            return false;
+        }
+
+        $compression = unpack('n', substr($binary, $offset, 2))[1];
+        if ($compression !== 0) {
+            // RLE or ZIP: the compressed length is only known by decoding, so
+            // the tag is all that can be checked here.
+            return true;
+        }
+
+        // Raw: one sample per channel per pixel, one byte per 8 bits of depth.
+        $bytesPerSample = max(1, intdiv($depth, 8));
+
+        return $offset + 2 + $channels * $width * $height * $bytesPerSample <= $length;
     }
 
     /**

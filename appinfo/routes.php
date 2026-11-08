@@ -17,8 +17,9 @@ return [
         // Store a browser-rendered thumbnail for an image
         ['name' => 'file#thumbnail', 'url' => '/api/thumbnail/{fileId}', 'verb' => 'POST'],
         // Serve the vendored PhotoCraft web build. The path requirement allows
-        // slashes so the bundle's own relative subresource URLs resolve here.
-        ['name' => 'photocraft#asset', 'url' => '/photocraft/{path}', 'verb' => 'GET', 'requirements' => ['path' => '.+']],
+        // slashes and may be empty, so the bundle's relative subresource URLs
+        // and a bare request for the editor both resolve here.
+        ['name' => 'photocraft#asset', 'url' => '/photocraft/{path}', 'verb' => 'GET', 'requirements' => ['path' => '.*'], 'defaults' => ['path' => '']],
         // Admin settings endpoint
         ['name' => 'AdminSettings#index', 'url' => '/settings/admin', 'verb' => 'GET'],
         ['name' => 'AdminSettings#settings', 'url' => '/settings/save', 'verb' => 'POST'],

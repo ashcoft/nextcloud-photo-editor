@@ -1,0 +1,59 @@
+# Verifies the vendored PhotoCraft build matches the pinned release.
+#
+# The editor is a committed third-party bundle, and scripts/fetch-photocraft.sh
+# records the release it came from. Nothing else ties the two together, so a
+# bump that edits only the pin - or only the bundle - would ship an editor whose
+# provenance does not match its contents, and the fetcher would then fail its
+# own checksum check on the next run.
+#
+# This runs the fetcher, which downloads the pinned archive and verifies its
+# checksum, then fails if the result differs from what is committed. That is
+# what keeps the pin and the bundle in step.
+#
+# SPDX-FileCopyrightText: 2026 Photo Editor Contributors
+# SPDX-License-Identifier: MIT
+
+name: Photocraft bundle check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - stable*
+
+permissions:
+  contents: read
+
+concurrency:
+  group: photocraft-bundle-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    name: photocraft-bundle
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Re-fetch the pinned release and compare it with the committed bundle
+        run: |
+          set -euo pipefail
+
+          # Downloads the pinned release, verifies its SHA-256, and writes the
+          # tree into photocraft/. If the pin names a different release than the
+          # one committed the checksum fails here; if the contents differ, the
+          # diff below does.
+          bash scripts/fetch-photocraft.sh
+
+          if ! git diff --quiet -- photocraft; then
+            echo "::error::the committed bundle does not match the pinned release; run scripts/fetch-photocraft.sh and commit the result"
+            git --no-pager diff --stat -- photocraft
+            exit 1
+          fi
+
+          echo "The committed bundle matches the pinned PhotoCraft release."

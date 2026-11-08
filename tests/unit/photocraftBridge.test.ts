@@ -94,14 +94,14 @@ describe('PhotocraftBridge', () => {
   })
 
   it('resolves ready() once the drop target exists', async () => {
-    const bridge = new PhotocraftBridge(makeFrame(), { onOutput: () => {} })
+    const bridge = new PhotocraftBridge(makeFrame(), { shouldIntercept: () => true, onOutput: () => {} })
     await expect(bridge.ready()).resolves.toBeUndefined()
   })
 
   it('dispatches the three drag events that open a file', async () => {
     const frame = makeFrame()
     shimDomApis(frame)
-    const bridge = new PhotocraftBridge(frame, { onOutput: () => {} })
+    const bridge = new PhotocraftBridge(frame, { shouldIntercept: () => true, onOutput: () => {} })
     await bridge.ready()
 
     const seen: string[] = []
@@ -123,6 +123,7 @@ describe('PhotocraftBridge', () => {
     shimDomApis(frame)
     const outputs: { name: string; type: string; size: number }[] = []
     const bridge = new PhotocraftBridge(frame, {
+      shouldIntercept: () => true,
       onOutput: (output) => outputs.push({ name: output.name, type: output.type, size: output.blob.size }),
     })
     await bridge.ready()
@@ -147,7 +148,10 @@ describe('PhotocraftBridge', () => {
     const frame = makeFrame()
     shimDomApis(frame)
     const outputs: unknown[] = []
-    const bridge = new PhotocraftBridge(frame, { onOutput: (o) => outputs.push(o) })
+    const bridge = new PhotocraftBridge(frame, {
+      shouldIntercept: () => true,
+      onOutput: (o) => outputs.push(o),
+    })
     await bridge.ready()
     bridge.install()
 
@@ -158,6 +162,33 @@ describe('PhotocraftBridge', () => {
 
     // The patched click falls through to the original, which in jsdom is a
     // no-op, so nothing is captured and nothing throws.
+    expect(() => anchor.click()).not.toThrow()
+    expect(outputs).toEqual([])
+  })
+
+  it('lets the editor download a file the host will not store', async () => {
+    const frame = makeFrame()
+    shimDomApis(frame)
+    const outputs: unknown[] = []
+    const bridge = new PhotocraftBridge(frame, {
+      // The host refuses, as it does for a Photoshop document produced for a
+      // PNG target.
+      shouldIntercept: () => false,
+      onOutput: (o) => outputs.push(o),
+    })
+    await bridge.ready()
+    bridge.install()
+
+    const window = frame.contentWindow!
+    const blob = new window.Blob(['psd'], { type: 'image/vnd.adobe.photoshop' })
+    const url = window.URL.createObjectURL(blob)
+    const anchor = window.document.createElement('a')
+    anchor.href = url
+    anchor.download = 'art.psd'
+
+    // Nothing is captured, and the click falls through so the user still gets
+    // the file. The original `click` is a no-op in jsdom, so a throw here would
+    // mean the bridge swallowed it.
     expect(() => anchor.click()).not.toThrow()
     expect(outputs).toEqual([])
   })

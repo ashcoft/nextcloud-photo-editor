@@ -308,21 +308,23 @@ test.describe('embedded PhotoCraft editor', () => {
       .toBeGreaterThan(1_000)
   })
 
-  test('captures the file the editor saves', async ({ page }) => {
+  test('writes a Photoshop document back when the editor saves it', async ({ page }) => {
     test.setTimeout(180_000)
-    await loadApp(page)
+    await loadApp(page, { psd: true })
 
     const frame = page.frameLocator('iframe.photo-editor-frame')
     await expect(frame.locator('#photocraft_canvas')).toBeVisible({ timeout: 150_000 })
 
+    // Registered before the action, or the request can complete first and the
+    // wait times out.
+    const request = page.waitForRequest((r) =>
+      r.url().includes('/apps/photo_editor/api/save/') && r.method() === 'POST')
+
     // Trigger the editor's own Save. The bridge turns the download into the
-    // host's output, which the toolbar's Save then writes back.
+    // host's output, which is written back because the target is a PSD.
     await frame.locator('body').click({ position: { x: 400, y: 300 } })
     await page.keyboard.press('Control+s')
 
-    // The host writes back with the etag it loaded.
-    const request = page.waitForRequest((r) =>
-      r.url().includes('/apps/photo_editor/api/save/') && r.method() === 'POST')
     const body = await request.then((r) => r.postData() ?? '')
 
     // The payload is a data URL of a Photoshop document: PhotoCraft saves a
@@ -331,16 +333,40 @@ test.describe('embedded PhotoCraft editor', () => {
     expect(body).toContain('etag-1')
   })
 
+  test('does not write a Photoshop document over a PNG', async ({ page }) => {
+    test.setTimeout(180_000)
+    await loadApp(page)
+
+    const frame = page.frameLocator('iframe.photo-editor-frame')
+    await expect(frame.locator('#photocraft_canvas')).toBeVisible({ timeout: 150_000 })
+
+    let saved = false
+    page.on('request', (r) => {
+      if (r.url().includes('/apps/photo_editor/api/save/') && r.method() === 'POST') {
+        saved = true
+      }
+    })
+
+    await frame.locator('body').click({ position: { x: 400, y: 300 } })
+    await page.keyboard.press('Control+s')
+    await page.waitForTimeout(4_000)
+
+    // PhotoCraft always saves a PSD, and a PSD cannot replace a PNG: the host
+    // declines, so the editor's own download runs instead of a write-back.
+    expect(saved).toBe(false)
+  })
+
   test('uploads a preview for a Photoshop document', async ({ page }) => {
     test.setTimeout(180_000)
     await loadApp(page, { psd: true })
 
-    // A PSD has no server-side previewer, so the app renders one from the
-    // bytes it loaded and uploads it. Without this the Files grid would fall
-    // back to the generic icon, which is the regression this guards.
+    // Registered before the page loads, so the upload cannot be missed.
     const upload = page.waitForRequest((r) =>
       r.url().includes('/apps/photo_editor/api/thumbnail/') && r.method() === 'POST')
 
+    // A PSD has no server-side previewer, so the app renders one from the
+    // bytes it loaded and uploads it. Without this the Files grid would fall
+    // back to the generic icon, which is the regression this guards.
     const body = await upload.then((r) => r.postData() ?? '')
 
     expect(body).toContain('data:image/png;base64,')
