@@ -61,8 +61,17 @@ describe('parsePsd', () => {
     const [accent, background] = document.layers
     expect(accent!.name).toBe('Accent')
     expect(accent!.opacity).toBe(128)
+    // Every bound, so a regression in any one of them is caught.
+    expect(accent!.top).toBe(1)
+    expect(accent!.left).toBe(1)
+    expect(accent!.bottom).toBe(3)
+    expect(accent!.right).toBe(3)
     expect(background!.name).toBe('Background')
     expect(background!.visible).toBe(true)
+    expect(background!.top).toBe(0)
+    expect(background!.left).toBe(0)
+    expect(background!.bottom).toBe(4)
+    expect(background!.right).toBe(4)
   })
 
   it('captures the merged image data section', () => {
@@ -76,6 +85,14 @@ describe('parsePsd', () => {
 
     // 2-byte compression tag + 3 planes of 4 bytes.
     expect(document.imageData.length).toBe(2 + 12)
+
+    // The tag and the planes themselves, so a channel-order or offset
+    // regression cannot pass on the length alone.
+    expect(Array.from(document.imageData.subarray(0, 2))).toEqual([0, 0])
+    const body = document.imageData.subarray(2)
+    expect(Array.from(body.subarray(0, 4))).toEqual([1, 1, 1, 1])
+    expect(Array.from(body.subarray(4, 8))).toEqual([2, 2, 2, 2])
+    expect(Array.from(body.subarray(8, 12))).toEqual([3, 3, 3, 3])
   })
 
   it('records hidden layers', () => {

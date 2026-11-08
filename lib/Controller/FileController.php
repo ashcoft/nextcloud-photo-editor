@@ -43,6 +43,17 @@ class FileController extends Controller
      */
     private const MAX_IMAGE_EDGE = 16384;
 
+    /**
+     * Largest pixel count a save may decode to.
+     *
+     * The edge cap alone is not enough: 16384x16384 is 268M pixels, and
+     * `imagecreatefromstring` needs roughly four bytes per pixel, so a small,
+     * solid-colour PNG could ask the server for about a gigabyte. The editor
+     * caps a resize at 16M pixels, so anything above this is not a document it
+     * could have produced.
+     */
+    private const MAX_IMAGE_PIXELS = 16 * 1024 * 1024;
+
     public function __construct(
         string $appName,
         IRequest $request,
@@ -441,6 +452,12 @@ class FileController extends Controller
         }
 
         if ($info[0] > self::MAX_IMAGE_EDGE || $info[1] > self::MAX_IMAGE_EDGE) {
+            return null;
+        }
+
+        // The header is read before the pixels are, so a huge canvas is
+        // rejected here rather than after GD has allocated it.
+        if ($info[0] * $info[1] > self::MAX_IMAGE_PIXELS) {
             return null;
         }
 

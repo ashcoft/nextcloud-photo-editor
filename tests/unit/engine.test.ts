@@ -61,12 +61,17 @@ describe('adjustments', () => {
     expect(image.data[3]).toBe(128)
   })
 
-  it('desaturates to grey', () => {
+  it('desaturates to the expected luma', () => {
     const image = imageOf([[200, 50, 25, 255]])
     applyAdjustments(image, { ...DEFAULT_ADJUSTMENTS, saturation: -100 })
-    // Fully desaturated: all channels become the same luma value.
-    expect(image.data[0]).toBe(image.data[1])
-    expect(image.data[1]).toBe(image.data[2])
+
+    // 0.299*200 + 0.587*50 + 0.114*25 = 91.8 -> 92. Asserting the value, not
+    // just that the channels agree, so an implementation that wrote black
+    // pixels would fail.
+    const expected = Math.round(0.299 * 200 + 0.587 * 50 + 0.114 * 25)
+    expect(image.data[0]).toBe(expected)
+    expect(image.data[1]).toBe(expected)
+    expect(image.data[2]).toBe(expected)
   })
 
   it('warms the image by raising red and lowering blue', () => {
