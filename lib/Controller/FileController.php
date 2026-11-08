@@ -496,10 +496,25 @@ class FileController extends Controller
      */
     private function validatePhotoshopDocument(string $binary, string $fileName): ?array
     {
+        if (!$this->hasValidPhotoshopHeader($binary, $fileName)) {
+            return null;
+        }
+
+        return ['binary' => $binary, 'mimeType' => 'image/vnd.adobe.photoshop'];
+    }
+
+    /**
+     * Whether the bytes carry a plausible Photoshop header for the extension.
+     *
+     * Every check is a condition on the 26-byte header, so they are combined
+     * into one predicate rather than a sequence of early returns.
+     */
+    private function hasValidPhotoshopHeader(string $binary, string $fileName): bool
+    {
         // 26-byte header: 4 signature, 2 version, 6 reserved, 2 channels,
         // 4 height, 4 width, 2 depth, 2 colour mode.
         if (strlen($binary) < 26 || substr($binary, 0, 4) !== '8BPS') {
-            return null;
+            return false;
         }
 
         $version = unpack('n', substr($binary, 4, 2))[1];
@@ -507,13 +522,13 @@ class FileController extends Controller
 
         // Version 1 is PSD, 2 is PSB; the extension has to agree, or a PSD
         // could be written into a .psb and read back as the wrong format.
-        if (($isPsb && $version !== 2) || (!$isPsb && $version !== 1)) {
-            return null;
+        if ($isPsb ? $version !== 2 : $version !== 1) {
+            return false;
         }
 
         // The six reserved bytes are zero in every valid document.
         if (substr($binary, 6, 6) !== "\0\0\0\0\0\0") {
-            return null;
+            return false;
         }
 
         $channels = unpack('n', substr($binary, 12, 2))[1];
@@ -521,30 +536,16 @@ class FileController extends Controller
         $width = unpack('N', substr($binary, 18, 4))[1];
         $depth = unpack('n', substr($binary, 22, 2))[1];
 
-        // PSD allows 1-56 channels; a document with none or a wild count is
-        // not one this editor could have produced.
-        if ($channels < 1 || $channels > 56) {
-            return null;
-        }
-
-        if ($width < 1 || $height < 1) {
-            return null;
-        }
-
-        if ($width > self::MAX_IMAGE_EDGE || $height > self::MAX_IMAGE_EDGE) {
-            return null;
-        }
-
-        if ($width * $height > self::MAX_IMAGE_PIXELS) {
-            return null;
-        }
-
-        // 1, 8, 16 and 32 bits per channel are the defined depths.
-        if (!in_array($depth, [1, 8, 16, 32], true)) {
-            return null;
-        }
-
-        return ['binary' => $binary, 'mimeType' => 'image/vnd.adobe.photoshop'];
+        // PSD allows 1-56 channels, 1/8/16/32 bits per channel, and at least
+        // one pixel; the edge and pixel caps are the ones the raster path uses.
+        return $channels >= 1
+            && $channels <= 56
+            && in_array($depth, [1, 8, 16, 32], true)
+            && $width >= 1
+            && $height >= 1
+            && $width <= self::MAX_IMAGE_EDGE
+            && $height <= self::MAX_IMAGE_EDGE
+            && $width * $height <= self::MAX_IMAGE_PIXELS;
     }
 
     /**
