@@ -165,6 +165,9 @@ settings:
 overrides:
   '@babel/core': ^8.0.0
 
+patchedDependencies:
+  deepmerge@4.3.1: dc34ed511d2dc9da327749396152d97d4a27f02541d8ba50b414a4852e4f84a7
+
 importers:
 
   .:
@@ -7627,7 +7630,7 @@ snapshots:
 
   deep-is@0.1.4: {}
 
-  deepmerge@4.3.1: {}
+  deepmerge@4.3.1(patch_hash=dc34ed511d2dc9da327749396152d97d4a27f02541d8ba50b414a4852e4f84a7): {}
 
   delayed-stream@1.0.0: {}
 
@@ -8400,7 +8403,7 @@ snapshots:
       babel-jest: 30.5.2(@babel/core@8.1.0)
       chalk: 4.1.2
       ci-info: 4.4.0
-      deepmerge: 4.3.1
+      deepmerge: 4.3.1(patch_hash=dc34ed511d2dc9da327749396152d97d4a27f02541d8ba50b414a4852e4f84a7)
       glob: 13.0.7
       graceful-fs: 4.2.11
       jest-circus: 30.5.2
