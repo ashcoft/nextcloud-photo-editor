@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.2.0...v1.3.0) (2026-11-08)
+
+
+### Bug Fixes
+
+* **deps:** patch deepmerge prototype poisoning (GHSA-gcqx-w48m-w2h4) ([928629a](https://github.com/ashcoft/nextcloud-photo-editor/commit/928629a466b18e7facb2132ad6ecccd7e89bc19b)), closes [TehShrike/deepmerge#274](https://github.com/TehShrike/deepmerge/issues/274)
+
 # [1.2.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.1.0...v1.2.0) (2026-11-08)
 
 
