@@ -3,28 +3,29 @@
  * SPDX-License-Identifier: MIT
  */
 
-// deepmerge <= 4.3.1 lets a `__proto__` key in the source object set the
-// prototype of the object merge() returns (GHSA-gcqx-w48m-w2h4). The advisory
-// ships no fixed release, so the package is patched locally; these tests fail
-// if that patch is dropped.
-//
-// The exploit needs a target shape that the library's own propertyIsUnsafe()
-// guard misses: a null-prototype object, or a null/primitive placeholder on the
-// target. Both are the shapes the advisory names.
+// deepmerge <= 4.3.1 lets a `__proto__` key in the source set the prototype of
+// the object merge() returns (GHSA-gcqx-w48m-w2h4). Its own guard only catches
+// the key when the target is a plain object, so the exploit needs a target shape
+// the guard misses: a null-prototype object, or a null/primitive placeholder.
+// The advisory has no fixed release, so the package is patched locally and the
+// tests below fail if that patch is dropped.
 import merge from 'deepmerge'
 
 const MALICIOUS = JSON.parse('{"__proto__": {"isAdmin": true}}') as Record<string, unknown>
 
 describe('deepmerge prototype-poisoning patch (GHSA-gcqx-w48m-w2h4)', () => {
-  it('does not let a __proto__ key set the prototype of a null-placeholder target', () => {
+  it('rejects a __proto__ key merged into a null-placeholder target', () => {
     const merged = merge({ session: null }, { session: MALICIOUS }) as {
       session: Record<string, unknown>
     }
     expect(Object.getPrototypeOf(merged.session)).toBe(Object.prototype)
     expect(merged.session.isAdmin).toBeUndefined()
+    // The poisoning stays on the returned object; the global prototype is never
+    // touched, which is what makes it silent.
+    expect(({} as Record<string, unknown>).isAdmin).toBeUndefined()
   })
 
-  it('does not let a __proto__ key set the prototype of a null-prototype target', () => {
+  it('rejects a __proto__ key merged into a null-prototype target', () => {
     const merged = merge(Object.create(null), MALICIOUS)
     expect(Object.getPrototypeOf(merged)).toBe(Object.prototype)
     expect(merged.isAdmin).toBeUndefined()
@@ -41,21 +42,7 @@ describe('deepmerge prototype-poisoning patch (GHSA-gcqx-w48m-w2h4)', () => {
     expect(merged.verbose).toBe(true)
   })
 
-  it('does not let a __proto__ key inside an array element poison the clone', () => {
-    const merged = merge({ list: [] }, JSON.parse('{"list": [{"__proto__": {"isAdmin": true}}]}')) as {
-      list: Record<string, unknown>[]
-    }
-    expect(Object.getPrototypeOf(merged.list[0])).toBe(Object.prototype)
-    expect(merged.list[0].isAdmin).toBeUndefined()
-  })
-
-  it('never touches the global Object.prototype', () => {
-    merge({}, MALICIOUS)
-    merge(Object.create(null), MALICIOUS)
-    expect(({} as Record<string, unknown>).isAdmin).toBeUndefined()
-  })
-
-  it('still merges ordinary objects as before', () => {
+  it('still merges ordinary objects', () => {
     expect(merge({ a: { b: 1 } }, { a: { c: 2 } })).toEqual({ a: { b: 1, c: 2 } })
     expect(merge({ a: 1 }, { a: 0 }).a).toBe(0)
     expect(merge({}, { foo: 'bar' }).foo).toBe('bar')

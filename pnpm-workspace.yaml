@@ -19,8 +19,6 @@ allowBuilds:
 
 patchedDependencies:
   # Security: deepmerge <= 4.3.1 lets a `__proto__` key set the prototype of the
-  # object merge() returns (GHSA-gcqx-w48m-w2h4). The package is unmaintained
-  # and the advisory has no fixed release, so the upstream fix is applied here:
-  # `__proto__` keys are rejected regardless of the target's shape. Dev-only
-  # (jest-config); the patch is guarded by tests/unit/deepmergePatch.test.ts.
+  # object merge() returns (GHSA-gcqx-w48m-w2h4), and the advisory has no fixed
+  # release. The patch rejects `__proto__` regardless of the target's shape.
   deepmerge@4.3.1: patches/deepmerge@4.3.1.patch
