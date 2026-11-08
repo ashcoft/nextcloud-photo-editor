@@ -71,23 +71,39 @@ Located in `src/`. Follow the Vue 3 Composition API.
 
 ### Editor Core (`src/editor/`)
 
-The editor core is deliberately framework-free: it is plain TypeScript that operates on canvases and
-`Uint8Array`s. Keep it that way. Vue components call into it; it never imports from Vue.
+The editor is PhotoCraft's web build, embedded in a same-origin iframe; it is not code maintained here.
+`src/editor/` holds only the bridge to it and the format helpers:
 
-| Directory | Responsibility |
+| File | Responsibility |
 | --- | --- |
-| `editor/psd/` | Parse PSD/PSB, decompress channels, composite layers |
-| `editor/engine/` | Adjustments, filters, transforms, history, render pipeline |
-| `editor/io/` | Turn bytes into a canvas, and a canvas back into bytes |
+| `editor/photocraftBridge.ts` | Open a file in the editor, and capture what it saves |
+| `editor/psdThumbnail.ts` | Render a Files-grid preview from Photoshop bytes |
+| `editor/psd/` | PSD/PSB reader and compositor, used only for those previews |
+| `editor/mimeTypes.ts` | Extensions and MIME types the app recognises |
 
 #### Invariants to preserve
 
-- **Rendering is pure.** `renderEdit(source, state)` must never mutate `source`. Every edit produces a new
-  canvas. This is what makes undo and the live preview work.
-- **Parsing does not decompress.** `parsePsd` keeps channel data compressed. Only the compositor decodes,
-  and only for the channels it needs.
-- **The merged image wins.** When a PSD carries a merged image, `compositeDocument` uses it rather than
-  compositing layers, because it reflects what Photoshop itself rendered.
+- **The bridge drives the editor's own interfaces.** A file is opened by dispatching the same HTML5 drop
+  a user's drag produces, and a save is captured by wrapping `URL.createObjectURL` and the anchor click
+  inside the frame. PhotoCraft publishes no host API, so these are the seams; keep both in one module so
+  a change to either is a single edit.
+- **The e2e test is the contract.** `tests/e2e/photocraftBridge.spec.ts` drives the real bridge against
+  the real bundle. Any bump of the vendored version must keep it passing, because nothing else proves the
+  editor still accepts a drop or still emits a save.
+- **The bridge is framework-free.** It is plain TypeScript over DOM APIs; Vue calls into it, and it must
+  not import from Vue.
+- **Rendering belongs to PhotoCraft.** Do not reintroduce a canvas rendering pipeline here; the app's job
+  is to move bytes in and out of the embedded editor.
+
+### The vendored editor
+
+`photocraft/` is a vendored third-party build, fetched and committed. It is **not** source to edit:
+regenerate it with `scripts/fetch-photocraft.sh`, which pins the version and verifies the release
+checksum. To upgrade, bump `PHOTOCRAFT_VERSION` and `PHOTOCRAFT_SHA256` together, run the script, and
+confirm the e2e test still passes. Renovate tracks the pinned version (see `renovate.json`).
+
+`PhotocraftBundleService` serves it and refuses any path that would leave the bundle directory;
+`PhotocraftController` sets `application/wasm` on the module, which a browser requires.
 
 ### File Conventions
 

@@ -431,7 +431,7 @@ class FileController extends Controller
      */
     private function decodeImageDataUrl(string $dataUrl, string $fileName): ?array
     {
-        if (!preg_match('#^data:image/(png|jpeg|webp|gif|bmp|avif);base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $m)) {
+        if (!preg_match('#^data:image/(png|jpeg|webp|gif|bmp|avif|vnd\.adobe\.photoshop(?:-large)?);base64,([A-Za-z0-9+/=]+)$#', $dataUrl, $m)) {
             return null;
         }
 
@@ -444,6 +444,12 @@ class FileController extends Controller
         $binary = base64_decode($m[2], true);
         if ($binary === false || $binary === '') {
             return null;
+        }
+
+        // A Photoshop document is not a raster image, so GD cannot validate it.
+        // It is checked by its own signature and header instead.
+        if (str_ends_with(strtolower($fileName), '.psd') || str_ends_with(strtolower($fileName), '.psb')) {
+            return $this->validatePhotoshopDocument($binary, $fileName);
         }
 
         $info = @getimagesizefromstring($binary);
@@ -474,6 +480,164 @@ class FileController extends Controller
         }
 
         return ['binary' => $binary, 'mimeType' => $mimeType];
+    }
+
+    /**
+     * Validate a Photoshop document's header.
+     *
+     * A PSD/PSB is not a raster image, so `getimagesizefromstring` cannot read
+     * it and GD cannot decode it. The file header is checked instead: the
+     * signature, the version matching the extension, the channel/bit-depth
+     * ranges, and the dimensions against the same edge and pixel caps the
+     * raster path uses. That is enough to refuse anything that is not a
+     * Photoshop document, or is one no editor could have produced.
+     *
+     * @return array{binary: string, mimeType: string}|null
+     */
+    private function validatePhotoshopDocument(string $binary, string $fileName): ?array
+    {
+        if (!$this->hasValidPhotoshopHeader($binary, $fileName)) {
+            return null;
+        }
+
+        return ['binary' => $binary, 'mimeType' => 'image/vnd.adobe.photoshop'];
+    }
+
+    /**
+     * Whether the bytes carry a plausible Photoshop header for the extension.
+     *
+     * Every check is a condition on the 26-byte header, so they are combined
+     * into one predicate rather than a sequence of early returns.
+     */
+    private function hasValidPhotoshopHeader(string $binary, string $fileName): bool
+    {
+        // 26-byte header: 4 signature, 2 version, 6 reserved, 2 channels,
+        // 4 height, 4 width, 2 depth, 2 colour mode.
+        if (strlen($binary) < 26 || substr($binary, 0, 4) !== '8BPS') {
+            return false;
+        }
+
+        $version = unpack('n', substr($binary, 4, 2))[1];
+        $isPsb = str_ends_with(strtolower($fileName), '.psb');
+
+        // Version 1 is PSD, 2 is PSB; the extension has to agree, or a PSD
+        // could be written into a .psb and read back as the wrong format.
+        $versionMatches = $isPsb ? $version === 2 : $version === 1;
+
+        // The six reserved bytes are zero in every valid document.
+        $reservedIsZero = substr($binary, 6, 6) === "\0\0\0\0\0\0";
+
+        $channels = unpack('n', substr($binary, 12, 2))[1];
+        $height = unpack('N', substr($binary, 14, 4))[1];
+        $width = unpack('N', substr($binary, 18, 4))[1];
+        $depth = unpack('n', substr($binary, 22, 2))[1];
+
+        // PSD allows 1-56 channels, 1/8/16/32 bits per channel, and at least
+        // one pixel; the edge and pixel caps are the ones the raster path uses.
+        $headerIsValid = $versionMatches
+            && $reservedIsZero
+            && $channels >= 1
+            && $channels <= 56
+            && in_array($depth, [1, 8, 16, 32], true)
+            && $width >= 1
+            && $height >= 1
+            && $width <= self::MAX_IMAGE_EDGE
+            && $height <= self::MAX_IMAGE_EDGE
+            && $width * $height <= self::MAX_IMAGE_PIXELS;
+
+        // The header alone would accept a header-only file, so the sections it
+        // describes are walked too. Their lengths are attacker-controlled, so
+        // each is checked against the bytes that remain before the offset moves
+        // on; a section that runs past the end means a truncated file, which
+        // must not replace the original.
+        return $headerIsValid
+            && $this->photoshopSectionsFit($binary, $isPsb, $channels, $width, $height, $depth);
+    }
+
+    /**
+     * Whether every PSD section the header describes is present.
+     *
+     * Layout after the 26-byte header: colour mode data (4-byte length), image
+     * resources (4), layer and mask information (4 for PSD, 8 for PSB), then
+     * the image data (2-byte compression tag plus the pixels). The reader in
+     * `src/editor/psd/parser.ts` uses the same widths, so the two agree on what
+     * a valid document is. A raw image's length follows from the header, so it
+     * is required in full; a compressed one cannot be sized without decoding,
+     * so only the tag is required.
+     */
+    private function photoshopSectionsFit(
+        string $binary,
+        bool $isPsb,
+        int $channels,
+        int $width,
+        int $height,
+        int $depth,
+    ): bool {
+        $offset = 26;
+        $length = strlen($binary);
+
+        // Colour mode data and image resources are always 4-byte lengths.
+        foreach ([4, 4] as $lengthFieldSize) {
+            if ($offset + $lengthFieldSize > $length) {
+                return false;
+            }
+            $sectionLength = unpack('N', substr($binary, $offset, 4))[1];
+            $offset += $lengthFieldSize + $sectionLength;
+            if ($offset > $length) {
+                return false;
+            }
+        }
+
+        // The layer and mask section is the one PSB widens to 64 bits.
+        $layerMaskFieldSize = $isPsb ? 8 : 4;
+        if ($offset + $layerMaskFieldSize > $length) {
+            return false;
+        }
+        $layerMaskLength = $isPsb
+            ? $this->readUint64(substr($binary, $offset, 8))
+            : unpack('N', substr($binary, $offset, 4))[1];
+        $offset += $layerMaskFieldSize + $layerMaskLength;
+        if ($offset > $length) {
+            return false;
+        }
+
+        // The image data section starts with its compression tag.
+        if ($offset + 2 > $length) {
+            return false;
+        }
+
+        $compression = unpack('n', substr($binary, $offset, 2))[1];
+        if ($compression !== 0) {
+            // RLE or ZIP: the compressed length is only known by decoding, so
+            // the tag is all that can be checked here.
+            return true;
+        }
+
+        // Raw: one sample per channel per pixel. Depth 1 packs eight pixels per
+        // byte, so its row is rounded up rather than counted per pixel.
+        $rowBytes = $depth === 1
+            ? intdiv($width + 7, 8)
+            : $width * max(1, intdiv($depth, 8));
+
+        return $offset + 2 + $channels * $rowBytes * $height <= $length;
+    }
+
+    /**
+     * Read a big-endian unsigned 64-bit length.
+     *
+     * `unpack('J')` is 64-bit native, which PHP on a 32-bit build cannot give,
+     * so the two halves are combined. A length above the platform's integer
+     * range would be a document far larger than the caps allow, so it is
+     * reported as over the limit rather than wrapped.
+     */
+    private function readUint64(string $bytes): int
+    {
+        $parts = unpack('Nhigh/Nlow', $bytes);
+        if ($parts['high'] > 0x7fffffff) {
+            return PHP_INT_MAX;
+        }
+
+        return ($parts['high'] << 32) | $parts['low'];
     }
 
     /**

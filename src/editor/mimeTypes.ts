@@ -31,10 +31,9 @@ export const RASTER_MIMES = [
   'image/webp',
   'image/gif',
   'image/bmp',
-  'image/avif',
 ] as const
 
-export const RASTER_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif']
+export const RASTER_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp']
 export const PSD_EXTENSIONS = ['psd', 'psb']
 
 const SUPPORTED_MIMES: readonly string[] = [...PSD_MIMES, ...RASTER_MIMES]
@@ -85,27 +84,17 @@ export function mimeForExtension(extension: string): string {
     case 'jpg':
     case 'jpeg':
       return 'image/jpeg'
+    case 'psd':
+      return CANONICAL_PSD_MIME
+    case 'psb':
+      return CANONICAL_PSB_MIME
     case 'webp':
       return 'image/webp'
     case 'gif':
       return 'image/gif'
     case 'bmp':
       return 'image/bmp'
-    case 'avif':
-      return 'image/avif'
     default:
       return 'image/png'
   }
-}
-
-/**
- * Whether the browser can encode this format well enough to save it.
- *
- * `canvas.toDataURL` falls back to PNG for any type it cannot encode, so a
- * save of a GIF, BMP or AVIF would write PNG bytes into a file that still
- * carries the original extension. Those formats stay read-only in the editor
- * and are offered through Export instead.
- */
-export function isServerEncodable(extension: string): boolean {
-  return extension === 'png' || extension === 'jpg' || extension === 'jpeg'
 }
