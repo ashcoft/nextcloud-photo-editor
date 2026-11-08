@@ -1,3 +1,15 @@
+# [1.6.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.5.0...v1.6.0) (2026-11-08)
+
+
+### Bug Fixes
+
+* classify a file by one rule so both actions cannot match ([1fc5e16](https://github.com/ashcoft/nextcloud-photo-editor/commit/1fc5e16aa28caad12309bcda4a58bc546a395271))
+
+
+### Features
+
+* open only Photoshop documents on a single click ([9c7c3b0](https://github.com/ashcoft/nextcloud-photo-editor/commit/9c7c3b0be7bf187b3cd99da95b011c922dfaeb7f))
+
 # [1.5.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.4.0...v1.5.0) (2026-11-08)
 
 
