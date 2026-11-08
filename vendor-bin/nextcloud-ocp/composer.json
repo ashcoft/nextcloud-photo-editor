@@ -5,6 +5,6 @@
         }
     },
     "require-dev": {
-        "nextcloud/ocp": "dev-stable34"
+        "nextcloud/ocp": "dev-master"
     }
 }
