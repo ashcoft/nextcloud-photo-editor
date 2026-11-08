@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.1.0...v1.2.0) (2026-11-08)
+
+
+### Bug Fixes
+
+* **deps:** force minimatch to the patched line for GHSA-g3hv-75wg-m249 ([355a60e](https://github.com/ashcoft/nextcloud-photo-editor/commit/355a60eb10bb074d34495237d6aad6f5256f74ec))
+
 # [1.1.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.0.0...v1.1.0) (2026-11-08)
 
 

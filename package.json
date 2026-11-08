@@ -1,6 +1,6 @@
 {
   "name": "nextcloud-photo-editor",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Nextcloud app for photo editing and PSD viewing",
   "packageManager": "pnpm@12.18.0",
