@@ -5,7 +5,7 @@
 
 import { generateUrl } from '@nextcloud/router'
 import { DefaultType, FileType, type IFileAction, type INode } from '@nextcloud/files'
-import { isSupportedExtension, isSupportedMime } from './editor/mimeTypes'
+import { isPsdExtension, isPsdMime, isRasterExtension, isRasterMime } from './editor/mimeTypes'
 
 type TranslateFn = (app: string, text: string) => string
 
@@ -15,18 +15,35 @@ export const PHOTO_EDITOR_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBo
 </svg>`
 
 /**
- * Whether a node is an image the editor can open.
+ * Whether a node is a Photoshop document the editor can open.
  *
- * Only files are considered, so a folder named `holiday.png` never matches.
- * The extension fallback keeps images openable when their MIME type has not
+ * Only files are considered, so a folder named `holiday.psd` never matches.
+ * The extension fallback keeps files openable when their MIME type has not
  * been resolved yet (e.g. the Nextcloud MIME mapping was not refreshed after
  * upload).
  */
-export function isEditableNode(node: Pick<INode, 'type' | 'mime' | 'basename'>): boolean {
+export function isPsdNode(node: Pick<INode, 'type' | 'mime' | 'basename'>): boolean {
   if (node.type !== FileType.File) {
     return false
   }
-  return isSupportedMime(node.mime) || isSupportedExtension(node.basename)
+  return isPsdMime(node.mime) || isPsdExtension(node.basename)
+}
+
+/**
+ * Whether a node is a raster image the editor can open.
+ */
+export function isRasterNode(node: Pick<INode, 'type' | 'mime' | 'basename'>): boolean {
+  if (node.type !== FileType.File) {
+    return false
+  }
+  return isRasterMime(node.mime) || isRasterExtension(node.basename)
+}
+
+/**
+ * Whether a node is an image the editor can open at all.
+ */
+export function isEditableNode(node: Pick<INode, 'type' | 'mime' | 'basename'>): boolean {
+  return isPsdNode(node) || isRasterNode(node)
 }
 
 /**
@@ -36,30 +53,35 @@ export function buildEditorUrl(fileId: number | string): string {
   return `${generateUrl('/apps/photo_editor/view')}?fileIds=${encodeURIComponent(String(fileId))}`
 }
 
-/**
- * Create the "Open with Photo Editor" file action.
- *
- * The action is registered as the default for supported images, so a single
- * click opens the editor. It navigates to the app's own editor route, which
- * runs the Vue editor directly.
- */
-export function createPhotoEditorFileAction({
-  translate,
-  iconSvgInline = PHOTO_EDITOR_ICON,
-  navigate = (url: string) => {
-    window.location.href = url
-  },
-}: {
+interface ActionOptions {
   translate: TranslateFn
   iconSvgInline?: string
   navigate?: (url: string) => void
-}): IFileAction {
+}
+
+function defaultNavigate(url: string): void {
+  window.location.href = url
+}
+
+/**
+ * The shared body of both actions: one file, navigated to the editor route.
+ */
+function createAction(
+  id: string,
+  isEnabled: (node: Pick<INode, 'type' | 'mime' | 'basename'>) => boolean,
+  isDefault: boolean,
+  { translate, iconSvgInline = PHOTO_EDITOR_ICON, navigate = defaultNavigate }: ActionOptions,
+): IFileAction {
   return {
-    id: 'photo-editor-open',
+    id,
     displayName: () => translate('photo_editor', 'Open with Photo Editor'),
     iconSvgInline: () => iconSvgInline,
-    default: DefaultType.DEFAULT,
-    enabled: ({ nodes }) => nodes.length === 1 && isEditableNode(nodes[0]),
+    // Only the Photoshop action is the default, so a PSD opens the editor on a
+    // single click. A raster image keeps Nextcloud's own viewer as the default
+    // and reaches the editor through the actions menu, which is where a
+    // right-click "Open with" lives.
+    default: isDefault ? DefaultType.DEFAULT : undefined,
+    enabled: ({ nodes }) => nodes.length === 1 && isEnabled(nodes[0]),
     exec: async ({ nodes }) => {
       const node = nodes[0]
       if (node?.fileid === undefined) {
@@ -69,4 +91,19 @@ export function createPhotoEditorFileAction({
       return null
     },
   }
+}
+
+/**
+ * Create the file actions that open a file in the editor.
+ *
+ * Two actions are registered rather than one with a computed default: the
+ * `default` flag is a static property of the action, not a decision made per
+ * file, so a single action cannot be the default for a PSD and a menu entry
+ * for a PNG. Their predicates are disjoint, so exactly one applies to a file.
+ */
+export function createPhotoEditorFileActions(options: ActionOptions): IFileAction[] {
+  return [
+    createAction('photo-editor-open-psd', isPsdNode, true, options),
+    createAction('photo-editor-open', isRasterNode, false, options),
+  ]
 }
