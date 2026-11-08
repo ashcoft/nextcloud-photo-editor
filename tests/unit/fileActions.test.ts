@@ -114,6 +114,47 @@ describe('createPhotoEditorFileActions', () => {
     expect(byId('photo-editor-open').enabled!({ nodes: png } as never)).toBe(true)
   })
 
+  it('classifies by the MIME type, so a disagreeing name cannot match twice', () => {
+    // A PNG named `.psd`: the MIME identifies the format, and one rule decides,
+    // so the two actions stay mutually exclusive.
+    const mismatched = node({ mime: 'image/png', basename: 'art.psd' })
+    expect(isPsdNode(mismatched)).toBe(false)
+    expect(isRasterNode(mismatched)).toBe(true)
+  })
+
+  it('prefers the MIME type when a PSD carries a raster name', () => {
+    const mismatched = node({ mime: 'image/vnd.adobe.photoshop', basename: 'photo.png' })
+    expect(isPsdNode(mismatched)).toBe(true)
+    expect(isRasterNode(mismatched)).toBe(false)
+  })
+
+  it('uses the extension only when the MIME is one it does not know', () => {
+    // Nextcloud has not resolved the type yet.
+    const unresolved = node({ mime: 'application/octet-stream', basename: 'art.psd' })
+    expect(isPsdNode(unresolved)).toBe(true)
+    expect(isRasterNode(unresolved)).toBe(false)
+
+    const unresolvedPng = node({ mime: 'application/octet-stream', basename: 'photo.png' })
+    expect(isPsdNode(unresolvedPng)).toBe(false)
+    expect(isRasterNode(unresolvedPng)).toBe(true)
+  })
+
+  it('never classifies one file as both', () => {
+    const cases = [
+      node(),
+      psdNode(),
+      node({ mime: 'image/png', basename: 'art.psd' }),
+      node({ mime: 'image/vnd.adobe.photoshop', basename: 'photo.png' }),
+      node({ mime: 'application/octet-stream', basename: 'art.psd' }),
+      node({ mime: 'application/octet-stream', basename: 'photo.png' }),
+      node({ mime: 'text/plain', basename: 'notes.txt' }),
+    ]
+
+    for (const candidate of cases) {
+      expect(isPsdNode(candidate) && isRasterNode(candidate)).toBe(false)
+    }
+  })
+
   it('disables both for several files', () => {
     const many = [node(), node()]
     expect(byId('photo-editor-open-psd').enabled!({ nodes: many } as never)).toBe(false)

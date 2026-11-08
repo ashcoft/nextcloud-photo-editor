@@ -14,36 +14,63 @@ export const PHOTO_EDITOR_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBo
   <path d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 2v14h14V5H5zm2.5 10 2.5-3 1.75 2.1L13.5 12l3.5 4.5h-11L7.5 15zM9 9.5A1.5 1.5 0 1 0 9 6.5a1.5 1.5 0 0 0 0 3z"/>
 </svg>`
 
+/** What the editor can do with a node. */
+export type FileKind = 'psd' | 'raster' | 'none'
+
+/**
+ * Classify a node as a Photoshop document, a raster image, or neither.
+ *
+ * One rule decides, so the two actions that use it can never both match: the
+ * MIME type is authoritative when it identifies a format, and the extension is
+ * consulted only when the MIME says nothing useful (Nextcloud had not resolved
+ * it after an upload, for example). Without the single rule, a file whose name
+ * and MIME disagree - `image/png` named `art.psd` - would satisfy both
+ * predicates and put two identical entries in the actions menu.
+ *
+ * Only files are considered, so a folder named `holiday.png` never matches.
+ */
+export function classifyFile(node: Pick<INode, 'type' | 'mime' | 'basename'>): FileKind {
+  if (node.type !== FileType.File) {
+    return 'none'
+  }
+
+  if (isPsdMime(node.mime)) {
+    return 'psd'
+  }
+  if (isRasterMime(node.mime)) {
+    return 'raster'
+  }
+
+  // The MIME is not one this app recognises, so the name decides.
+  if (isPsdExtension(node.basename)) {
+    return 'psd'
+  }
+  if (isRasterExtension(node.basename)) {
+    return 'raster'
+  }
+
+  return 'none'
+}
+
 /**
  * Whether a node is a Photoshop document the editor can open.
- *
- * Only files are considered, so a folder named `holiday.psd` never matches.
- * The extension fallback keeps files openable when their MIME type has not
- * been resolved yet (e.g. the Nextcloud MIME mapping was not refreshed after
- * upload).
  */
 export function isPsdNode(node: Pick<INode, 'type' | 'mime' | 'basename'>): boolean {
-  if (node.type !== FileType.File) {
-    return false
-  }
-  return isPsdMime(node.mime) || isPsdExtension(node.basename)
+  return classifyFile(node) === 'psd'
 }
 
 /**
  * Whether a node is a raster image the editor can open.
  */
 export function isRasterNode(node: Pick<INode, 'type' | 'mime' | 'basename'>): boolean {
-  if (node.type !== FileType.File) {
-    return false
-  }
-  return isRasterMime(node.mime) || isRasterExtension(node.basename)
+  return classifyFile(node) === 'raster'
 }
 
 /**
  * Whether a node is an image the editor can open at all.
  */
 export function isEditableNode(node: Pick<INode, 'type' | 'mime' | 'basename'>): boolean {
-  return isPsdNode(node) || isRasterNode(node)
+  return classifyFile(node) !== 'none'
 }
 
 /**

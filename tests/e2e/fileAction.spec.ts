@@ -88,8 +88,9 @@ test('only the Photoshop action is the default', async ({ page }) => {
 
   // The default is what a single click runs: a PSD opens the editor, and a
   // raster image keeps Nextcloud's own viewer and reaches the editor through
-  // the actions menu.
-  expect(defaults.psd).not.toBeNull()
+  // the actions menu. Asserted against the concrete value rather than "not
+  // null", so a `HIDDEN` default could not pass.
+  expect(defaults.psd).toBe('default')
   expect(defaults.raster).toBeNull()
 })
 
@@ -118,6 +119,10 @@ test('each action applies to exactly one kind of file', async ({ page }) => {
       octet: file('application/octet-stream', 'art.psd'),
       pdf: file('application/pdf', 'notes.pdf'),
       folder,
+      // The name and the MIME type disagree, which is what Nextcloud reports
+      // while a type mapping is stale.
+      pngNamedPsd: file('image/png', 'art.psd'),
+      psdNamedPng: file('image/vnd.adobe.photoshop', 'photo.png'),
     }
 
     const out: Record<string, Record<string, boolean | undefined>> = {}
@@ -138,5 +143,8 @@ test('each action applies to exactly one kind of file', async ({ page }) => {
     octet: { psd: true, raster: false },
     pdf: { psd: false, raster: false },
     folder: { psd: false, raster: false },
+    // The MIME type decides, so the two actions stay mutually exclusive.
+    pngNamedPsd: { psd: false, raster: true },
+    psdNamedPng: { psd: true, raster: false },
   })
 })

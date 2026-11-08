@@ -2,7 +2,9 @@
 /* SPDX-License-Identifier: MIT */
 
 const FileType = { File: 'file', Folder: 'folder' }
-const DefaultType = { DEFAULT: 0, HIDDEN: 1 }
+// The real package uses these string values, not ordinals; a mock that drifted
+// from them would let a test pass against behaviour the browser does not have.
+const DefaultType = { DEFAULT: 'default', HIDDEN: 'hidden' }
 
 module.exports = {
   FileType,
