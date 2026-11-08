@@ -7,6 +7,13 @@
 # pick core 8, and jest stops stripping TypeScript.
 overrides:
   '@babel/core': '^8.0.0'
+  # minimatch < 11.0.1 has a globparts amplification denial of service
+  # (GHSA-g3hv-75wg-m249). The advisory is patched only in 11.0.1: there is no
+  # fixed 9.x or 10.x, so every consumer pinned to ^9/^10 stays vulnerable and
+  # Dependabot cannot resolve an update. The consumers use only the APIs 11
+  # keeps (the Minimatch class, the minimatch() function, GLOBSTAR, escape,
+  # unescape), so the range is lifted to the patched line.
+  'minimatch@<11.0.1': '^11.0.1'
 
 # allowBuilds replaces onlyBuiltDependencies/ignoredBuiltDependencies, and
 # strictDepBuilds now defaults to true, so a skipped build fails the install.
