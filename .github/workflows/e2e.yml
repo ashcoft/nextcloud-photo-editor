@@ -40,6 +40,10 @@ jobs:
               - 'src/**'
               - 'css/**'
               - 'tests/e2e/**'
+              # The vendored editor is exercised by the bridge tests, so a
+              # bundle or pin change must run them.
+              - 'photocraft/**'
+              - 'scripts/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'tsconfig.json'

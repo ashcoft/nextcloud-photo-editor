@@ -42,11 +42,8 @@ jobs:
           configurationFile: renovate.json
           # A PR opened with the default GITHUB_TOKEN does not trigger this
           # repository's pull_request workflows, so its updates would merge
-          # untested; set RENOVATE_TOKEN to a dedicated token so the checks run.
-          # Falling back to the built-in token keeps the run working (and its
-          # log readable) when the secret is not configured, rather than failing
-          # before it starts.
-          token: ${{ secrets.RENOVATE_TOKEN || github.token }}
+          # untested. A dedicated token is required.
+          token: ${{ secrets.RENOVATE_TOKEN }}
         env:
           LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
           RENOVATE_DRY_RUN: ${{ inputs.dryRun || 'false' }}

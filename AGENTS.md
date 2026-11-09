@@ -170,6 +170,17 @@ documented null-context behaviour.
 The PSD tests use a fixture builder (`tests/unit/psdFixture.ts`) that writes spec-correct PSD bytes, so
 the reader is exercised on real structure rather than a bespoke format.
 
+### Updater script (bash)
+
+```bash
+pnpm run test:scripts
+```
+
+`tests/scripts/bump-photocraft.test.sh` covers `scripts/bump-photocraft.sh`. It stubs `curl` and the
+fetcher, so it needs no network, and exercises the real validation, release resolution, checksum
+selection, pin rewrite and failure restore. The `photocraft-bundle` workflow runs it alongside the
+bundle check.
+
 ### Static Analysis
 
 ```bash
