@@ -216,8 +216,9 @@ sync by the `Update workflows` workflow.
 | `e2e` | Playwright against the built bundle |
 | `codeql` | CodeQL for the Actions and TypeScript sources |
 | `version-check` | `appinfo/info.xml` and `package.json` versions agree |
+| `photocraft-bundle` | the committed editor bundle matches the pinned PhotoCraft release |
 | `release` | semantic-release, then build and attach the app archives |
-| `rector`, `update-nextcloud-ocp`, `pnpm-audit`, `renovate` | Scheduled dependency and code maintenance |
+| `rector`, `update-nextcloud-ocp`, `pnpm-audit`, `renovate`, `photocraft-update` | Scheduled dependency and code maintenance |
 
 `phpunit-*` install the app into a real Nextcloud server checkout and run it with
 `occ app:enable`, so the app is exercised against the framework rather than only in isolation.

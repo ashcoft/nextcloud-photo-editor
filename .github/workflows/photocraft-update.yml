@@ -1,0 +1,95 @@
+# Opens a pull request when upstream PhotoCraft cuts a release.
+#
+# The editor is a vendored build, not a package dependency: its version lives as
+# a shell variable in scripts/fetch-photocraft.sh, so Renovate and Dependabot
+# cannot see it and no dependency pull request is ever raised. This workflow is
+# that missing updater. It runs scripts/bump-photocraft.sh, which resolves the
+# wanted release, rewrites the version and its published SHA-256 together, and
+# re-vendors the bundle, then opens a pull request with the result.
+#
+# When the pin is already current the script changes nothing and no pull request
+# is opened, so a scheduled run with no upstream release is a no-op.
+#
+# SPDX-FileCopyrightText: 2026 Photo Editor Contributors
+# SPDX-License-Identifier: MIT
+
+name: PhotoCraft update
+
+on:
+  schedule:
+    # Daily at 06:30 UTC, shortly after the Renovate run at 06:00.
+    - cron: '30 6 * * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'PhotoCraft version to pin (default: latest upstream release)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: photocraft-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Bump the pin and re-vendor the bundle
+        id: bump
+        env:
+          # Raises the API rate limit while resolving the release and its
+          # checksum.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Bound through the environment rather than interpolated into the
+          # script: the value is supplied by whoever triggers the run, and
+          # splicing it into the shell would allow command injection.
+          PHOTOCRAFT_VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          bash scripts/bump-photocraft.sh "${PHOTOCRAFT_VERSION_INPUT}"
+          version="$(sed -n 's/^PHOTOCRAFT_VERSION="\([^"]*\)"/\1/p' scripts/fetch-photocraft.sh | head -1)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          # A PR opened with the default GITHUB_TOKEN does not trigger this
+          # repository's pull_request workflows, so the photocraft-bundle check
+          # and the e2e suite would not run on it. Reuse the token the Renovate
+          # workflow already expects, falling back to the default so the run
+          # still opens a PR when no dedicated token is configured.
+          token: ${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}
+          commit-message: 'fix(deps): Update PhotoCraft to ${{ steps.bump.outputs.version }}'
+          committer: GitHub <noreply@github.com>
+          author: nextcloud-command <nextcloud-command@users.noreply.github.com>
+          signoff: true
+          branch: automated/photocraft-update
+          delete-branch: true
+          title: 'Update PhotoCraft to ${{ steps.bump.outputs.version }}'
+          labels: |
+            dependencies
+          body: |
+            Bumps the vendored PhotoCraft editor to ${{ steps.bump.outputs.version }}.
+
+            `scripts/bump-photocraft.sh` rewrote `PHOTOCRAFT_VERSION` and
+            `PHOTOCRAFT_SHA256` together and re-ran `scripts/fetch-photocraft.sh`,
+            so the committed bundle matches the new pin. The `photocraft-bundle`
+            check on this pull request re-fetches the release and fails if it does not.
+
+            PhotoCraft is vendored rather than installed, so this pull request is
+            raised by `.github/workflows/photocraft-update.yml` instead of Renovate.
+
+            Before merging, confirm the `photocraft-bundle` check and the e2e suite pass.
+
+            This pull request was created by an automated workflow on behalf of the repository maintainers.

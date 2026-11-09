@@ -99,8 +99,12 @@ The editor is PhotoCraft's web build, embedded in a same-origin iframe; it is no
 
 `photocraft/` is a vendored third-party build, fetched and committed. It is **not** source to edit:
 regenerate it with `scripts/fetch-photocraft.sh`, which pins the version and verifies the release
-checksum. To upgrade, bump `PHOTOCRAFT_VERSION` and `PHOTOCRAFT_SHA256` together, run the script, and
-confirm the e2e test still passes. Renovate tracks the pinned version (see `renovate.json`).
+checksum. To upgrade, run `scripts/bump-photocraft.sh`, which rewrites `PHOTOCRAFT_VERSION` and
+`PHOTOCRAFT_SHA256` together, re-runs the fetcher, and then confirm the e2e test still passes.
+
+Because the pin is a shell variable rather than a package dependency, neither Renovate nor Dependabot
+can see it. `.github/workflows/photocraft-update.yml` runs `scripts/bump-photocraft.sh` on a schedule
+and opens a pull request with the result, which is how a new upstream release reaches this repository.
 
 `PhotocraftBundleService` serves it and refuses any path that would leave the bundle directory;
 `PhotocraftController` sets `application/wasm` on the module, which a browser requires.

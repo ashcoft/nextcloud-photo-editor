@@ -14,8 +14,8 @@
 # packaging quirk rather than a version-specific break.
 set -euo pipefail
 
-PHOTOCRAFT_VERSION="0.21.0"
-PHOTOCRAFT_SHA256="3cf893112507ac192c921e0223a3bd5404a24b3dcf94e7a37d43f5eba2032286"
+PHOTOCRAFT_VERSION="0.22.0"
+PHOTOCRAFT_SHA256="597c4ffc54eca20d944a292b54ef7b6a3a1fd20725c42396eee00adebef3ebd9"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dest="${repo_root}/photocraft"
