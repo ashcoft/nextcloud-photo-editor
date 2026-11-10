@@ -1,3 +1,11 @@
+# [1.7.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.6.0...v1.7.0) (2026-11-10)
+
+
+### Bug Fixes
+
+* **deps:** automate PhotoCraft updates and bump the vendored editor to 0.22.0 ([b996307](https://github.com/ashcoft/nextcloud-photo-editor/commit/b9963075b71b9e8d1c354f810cfa63eeaba8f69a))
+* **deps:** harden the PhotoCraft updater and address review feedback ([4cf6d29](https://github.com/ashcoft/nextcloud-photo-editor/commit/4cf6d295e4de35afe838026503c566347ad43882))
+
 # [1.6.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.5.0...v1.6.0) (2026-11-08)
 
 

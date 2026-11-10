@@ -22,7 +22,7 @@
 - Responsive design that works on desktop and mobile
 
 All rendering happens in the browser; the file never leaves the Nextcloud server except as the bytes the browser already has permission to read. See the [project README](https://github.com/ashcoft/nextcloud-photo-editor#readme) for requirements, installation and usage.]]></description>
-  <version>1.6.0</version>
+  <version>1.7.0</version>
   <licence>MIT</licence>
   <author mail="dony@dony.me">Photo Editor Contributors</author>
   <namespace>PhotoEditor</namespace>
