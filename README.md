@@ -16,8 +16,7 @@ A native Nextcloud app for editing photos and Photoshop PSD documents, built on
 [PhotoCraft](https://github.com/storytold/photocraft) — an open-source, clean-room reimplementation of
 Adobe Photoshop in Rust.
 
-The app follows the structure of [Nextcloud CAD Viewer](https://github.com/ashcoft/nextcloud-cad-viewer):
-a thin PHP backend that resolves files, streams them to the browser, and stores previews, paired with a
+The app is a thin PHP backend that resolves files, streams them to the browser, and stores previews, paired with a
 Vue 3 front end. The editor itself is PhotoCraft's web build, embedded in an iframe and driven by a small
 bridge, so layers, masks, adjustment layers, type, vectors, brushes and PSD read/write come from upstream
 rather than from code maintained here.
