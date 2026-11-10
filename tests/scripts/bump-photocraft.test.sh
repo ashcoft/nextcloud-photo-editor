@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+#
+# Tests for scripts/bump-photocraft.sh.
+#
+# `curl` and the fetcher are stubbed so the suite needs no network and does not
+# download the ~14 MB archive; everything the script itself does - validation,
+# release resolution, checksum selection, the pin rewrite and the restore on
+# failure - runs for real.
+set -uo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+bump="${repo_root}/scripts/bump-photocraft.sh"
+
+work="$(mktemp -d)"
+trap 'rm -rf "${work}"' EXIT
+
+failures=0
+pass() { echo "ok   - $1"; }
+fail() { echo "FAIL - $1"; failures=$((failures + 1)); }
+
+# A fake `curl` that answers the two URLs the script calls. FAKE_TAG feeds the
+# releases endpoint, FAKE_SUM the SHA256SUMS file.
+mkdir -p "${work}/bin"
+cat > "${work}/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+url=""
+for arg in "$@"; do
+    case "${arg}" in
+        http*) url="${arg}" ;;
+    esac
+done
+case "${url}" in
+    */releases/latest)
+        printf '{"tag_name": "v%s"}\n' "${FAKE_TAG}"
+        ;;
+    */SHA256SUMS.txt)
+        printf '%s  photocraft-web-%s.zip\n' "${FAKE_SUM}" "${FAKE_TAG}"
+        ;;
+    *)
+        exit 1
+        ;;
+esac
+STUB
+chmod +x "${work}/bin/curl"
+export PATH="${work}/bin:${PATH}"
+
+# A fetcher stub whose current pin is the given version.
+seed_fetcher() {
+    cat > "${work}/fetcher.sh" <<EOF
+#!/usr/bin/env bash
+PHOTOCRAFT_VERSION="0.22.0"
+PHOTOCRAFT_SHA256="$(printf 'a%.0s' {1..64})"
+exit 0
+EOF
+    chmod +x "${work}/fetcher.sh"
+}
+
+# A fetcher stub that keeps a valid pin but fails, standing in for a downloader
+# that cannot reach the release.
+mk_failing_fetcher() {
+    cat > "${work}/fetcher.sh" <<EOF
+#!/usr/bin/env bash
+PHOTOCRAFT_VERSION="0.22.0"
+PHOTOCRAFT_SHA256="$(printf 'a%.0s' {1..64})"
+echo "stub fetcher ran"
+exit 1
+EOF
+    chmod +x "${work}/fetcher.sh"
+}
+
+run_bump() {
+    PHOTOCRAFT_FETCHER="${work}/fetcher.sh" PHOTOCRAFT_UPSTREAM="storytold/photocraft" \
+        bash "${bump}" "$@" >"${work}/out" 2>&1
+    echo $?
+}
+
+read_pin() { sed -n 's/^PHOTOCRAFT_VERSION="\([^"]*\)"/\1/p' "${work}/fetcher.sh" | head -1; }
+
+# 1. A version that is not strict semver is rejected before anything is written.
+for bad in "1.2" "abc" "1.2.3; rm -rf /" '$(id)' '1.2.3 "x"; whoami'; do
+    seed_fetcher
+    code="$(run_bump "${bad}")"
+    if [[ "${code}" != "0" && "$(read_pin)" == "0.22.0" ]]; then
+        pass "rejects invalid version '${bad}' and leaves the pin untouched"
+    else
+        fail "invalid version '${bad}' was not rejected (exit ${code}, pin $(read_pin))"
+    fi
+done
+
+# 2. Already pinned is a no-op and exits 0.
+seed_fetcher
+code="$(run_bump 0.22.0)"
+if [[ "${code}" == "0" ]] && grep -q "already pinned" "${work}/out"; then
+    pass "no-op when the wanted version is already pinned"
+else
+    fail "expected a no-op for the current version (exit ${code})"
+fi
+
+# 3. A valid new version rewrites both the pin and the checksum.
+seed_fetcher
+newsum="$(printf 'b%.0s' {1..64})"
+code="$(FAKE_TAG=0.30.0 FAKE_SUM="${newsum}" run_bump 0.30.0)"
+sum="$(sed -n 's/^PHOTOCRAFT_SHA256="\([^"]*\)"/\1/p' "${work}/fetcher.sh" | head -1)"
+if [[ "${code}" == "0" && "$(read_pin)" == "0.30.0" && "${sum}" == "${newsum}" ]]; then
+    pass "rewrites version and checksum on a valid update"
+else
+    fail "expected pin 0.30.0 with the new checksum (exit ${code}, pin $(read_pin))"
+fi
+
+# 4. A malformed checksum is rejected and the pin is left alone.
+seed_fetcher
+code="$(FAKE_TAG=0.31.0 FAKE_SUM="not-a-sha" run_bump 0.31.0)"
+if [[ "${code}" != "0" && "$(read_pin)" == "0.22.0" ]]; then
+    pass "rejects a malformed checksum and leaves the pin untouched"
+else
+    fail "malformed checksum was accepted (exit ${code}, pin $(read_pin))"
+fi
+
+# 5. A failed fetch restores the previous pin so a retry is not skipped.
+mk_failing_fetcher
+goodsum="$(printf 'c%.0s' {1..64})"
+code="$(FAKE_TAG=0.32.0 FAKE_SUM="${goodsum}" run_bump 0.32.0)"
+if [[ "${code}" != "0" && "$(read_pin)" == "0.22.0" ]]; then
+    pass "restores the previous pin when the fetch fails"
+else
+    fail "pin not restored after a failed fetch (exit ${code}, pin $(read_pin))"
+fi
+
+echo
+if [[ "${failures}" -eq 0 ]]; then
+    echo "All bump-photocraft tests passed."
+else
+    echo "${failures} test(s) failed."
+fi
+exit "${failures}"
