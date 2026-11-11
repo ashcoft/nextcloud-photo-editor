@@ -40,11 +40,11 @@ jobs:
         uses: renovatebot/github-action@1c0cf989c02653fba0efe7ca5772338860ca71dc # v46.3.12
         with:
           configurationFile: renovate.json
-          # A PR opened with the built-in token does not trigger this
-          # repository's pull_request workflows, so its updates would merge
-          # untested; set RENOVATE_TOKEN to a dedicated token for updates whose
-          # checks will run. Falling back to the built-in token keeps the
-          # scheduled run from failing outright when the secret is not set.
+          # Updates opened with the built-in token need a maintainer to approve
+          # their runs, and the built-in token lacks the 'workflow' scope needed
+          # to update .github/workflows. Set RENOVATE_TOKEN so they are checked
+          # on their own; the fallback only keeps the scheduled run from failing
+          # when that secret is unset.
           token: ${{ secrets.RENOVATE_TOKEN || github.token }}
         env:
           LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
