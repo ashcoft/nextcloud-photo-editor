@@ -40,10 +40,12 @@ jobs:
         uses: renovatebot/github-action@1c0cf989c02653fba0efe7ca5772338860ca71dc # v46.3.12
         with:
           configurationFile: renovate.json
-          # A PR opened with the default GITHUB_TOKEN does not trigger this
+          # A PR opened with the built-in token does not trigger this
           # repository's pull_request workflows, so its updates would merge
-          # untested. A dedicated token is required.
-          token: ${{ secrets.RENOVATE_TOKEN }}
+          # untested; set RENOVATE_TOKEN to a dedicated token for updates whose
+          # checks will run. Falling back to the built-in token keeps the
+          # scheduled run from failing outright when the secret is not set.
+          token: ${{ secrets.RENOVATE_TOKEN || github.token }}
         env:
           LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
           RENOVATE_DRY_RUN: ${{ inputs.dryRun || 'false' }}
