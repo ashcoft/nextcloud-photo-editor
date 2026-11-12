@@ -12,6 +12,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fetcher="${PHOTOCRAFT_FETCHER:-${repo_root}/scripts/fetch-photocraft.sh}"
+readme="${PHOTOCRAFT_README:-${repo_root}/README.md}"
 upstream="${PHOTOCRAFT_UPSTREAM:-storytold/photocraft}"
 
 # The version is interpolated into two URLs and a sed program, and the checksum
@@ -55,6 +56,27 @@ rewrite_pin() {
         "${fetcher}" > "${tmp}"
     chmod "${mode}" "${tmp}"
     mv "${tmp}" "${fetcher}"
+}
+
+# The README states the vendored version in two places - the "Powered by
+# PhotoCraft" badge and the embedded-editor note - so a bump moves both or the
+# two drift apart. Failing when neither matches keeps a stale README from
+# passing unnoticed.
+rewrite_readme() {
+    local version="$1" tmp
+    [[ -f "${readme}" ]] || return 0
+    tmp="$(mktemp)"
+    sed \
+        -e "s|PhotoCraft%20[0-9][0-9.]*-|PhotoCraft%20${version}-|" \
+        -e "s|currently PhotoCraft [0-9][0-9.]*\.|currently PhotoCraft ${version}.|" \
+        "${readme}" > "${tmp}"
+    if ! grep -q "PhotoCraft%20${version}-" "${tmp}" ||
+        ! grep -q "currently PhotoCraft ${version}\." "${tmp}"; then
+        rm -f "${tmp}"
+        echo "ERROR: could not record PhotoCraft ${version} in ${readme}" >&2
+        return 1
+    fi
+    mv "${tmp}" "${readme}"
 }
 
 main() {
@@ -108,6 +130,8 @@ main() {
         return 1
     fi
     rm -f "${backup}"
+
+    rewrite_readme "${wanted}"
 
     echo "PhotoCraft ${wanted} pinned and vendored."
 }

@@ -5,7 +5,7 @@
 [![Nextcloud Version](https://img.shields.io/badge/Nextcloud-34--35-blue)](https://nextcloud.com)
 [![PHP Version](https://img.shields.io/badge/PHP-8.4-purple)](https://php.net)
 [![Node Version](https://img.shields.io/badge/Node-%E2%89%A524-339933?logo=node.js&logoColor=white)](https://nodejs.org)
-[![Powered by PhotoCraft](https://img.shields.io/badge/Powered%20by-PhotoCraft-2f7bf5)](https://github.com/storytold/photocraft)
+[![Powered by PhotoCraft](https://img.shields.io/badge/Powered%20by-PhotoCraft%200.23.1-2f7bf5)](https://github.com/storytold/photocraft)
 
 [![Node tests](https://img.shields.io/github/actions/workflow/status/ashcoft/nextcloud-photo-editor/node-test.yml?label=tests)](https://github.com/ashcoft/nextcloud-photo-editor/actions/workflows/node-test.yml)
 [![E2E tests](https://img.shields.io/github/actions/workflow/status/ashcoft/nextcloud-photo-editor/e2e.yml?label=e2e)](https://github.com/ashcoft/nextcloud-photo-editor/actions/workflows/e2e.yml)
@@ -111,8 +111,9 @@ dimensions against the same edge and pixel caps the raster path uses.
 PhotoCraft is a Rust/WASM application, not a library, so it is integrated by embedding it rather than by
 importing an API:
 
-- `photocraft/` holds the vendored web build. `scripts/fetch-photocraft.sh` downloads the pinned release
-  and verifies its SHA-256, so the tree can be regenerated and audited.
+- `photocraft/` holds the vendored web build, currently PhotoCraft 0.23.1.
+  `scripts/fetch-photocraft.sh` downloads the pinned release and verifies its SHA-256, so the tree can be
+  regenerated and audited.
 - `PhotocraftController` serves it, and `PhotocraftBundleService` refuses any path that would leave the
   bundle directory.
 - `src/editor/photocraftBridge.ts` is the bridge: a drop to open a file, and an interception of the
