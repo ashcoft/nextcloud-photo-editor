@@ -59,28 +59,33 @@ rewrite_pin() {
 }
 
 # The README states the vendored version in two places - the "Powered by
-# PhotoCraft" badge and the embedded-editor note - so a bump moves both or the
-# two drift apart. Failing when neither matches keeps a stale README from
-# passing unnoticed.
-rewrite_readme() {
-    local version="$1" tmp
-    [[ -f "${readme}" ]] || return 0
+# PhotoCraft" badge and the embedded-editor note. Both are rewritten into a
+# staging file whose path is printed on stdout, so the caller can reject a
+# README it cannot update before the pin moves, and apply it only once the
+# fetch has succeeded.
+#
+# The exact outgoing version is replaced, rather than a numeric prefix, so a
+# prerelease or build suffix cannot survive a later bump.
+stage_readme() {
+    local old="$1" new="$2" tmp esc_old
+    # `old` is validated semver, so only `.` is a BRE metacharacter.
+    esc_old="${old//./\\.}"
     tmp="$(mktemp)"
     sed \
-        -e "s|PhotoCraft%20[0-9][0-9.]*-|PhotoCraft%20${version}-|" \
-        -e "s|currently PhotoCraft [0-9][0-9.]*\.|currently PhotoCraft ${version}.|" \
+        -e "s|\(Powered%20by-PhotoCraft%20\)${esc_old}-|\1${new}-|" \
+        -e "s|\(currently PhotoCraft \)${esc_old}\.|\1${new}.|" \
         "${readme}" > "${tmp}"
-    if ! grep -q "PhotoCraft%20${version}-" "${tmp}" ||
-        ! grep -q "currently PhotoCraft ${version}\." "${tmp}"; then
+    if ! grep -qF "PhotoCraft%20${new}-" "${tmp}" ||
+        ! grep -qF "currently PhotoCraft ${new}." "${tmp}"; then
         rm -f "${tmp}"
-        echo "ERROR: could not record PhotoCraft ${version} in ${readme}" >&2
+        echo "ERROR: could not record PhotoCraft ${new} in ${readme}" >&2
         return 1
     fi
-    mv "${tmp}" "${readme}"
+    printf '%s' "${tmp}"
 }
 
 main() {
-    local wanted current checksum backup
+    local wanted current checksum backup staged_readme
 
     if [[ $# -ge 1 && -n "${1:-}" ]]; then
         wanted="${1#v}"
@@ -117,21 +122,33 @@ main() {
         return 1
     fi
 
+    # The README must be present and rewritable before the pin moves: if it
+    # cannot be updated, failing here leaves the tree untouched, rather than
+    # pinning a version the README never records and a retry then skips.
+    if [[ ! -f "${readme}" ]]; then
+        echo "ERROR: ${readme} does not exist" >&2
+        return 1
+    fi
+    if ! staged_readme="$(stage_readme "${current}" "${wanted}")"; then
+        return 1
+    fi
+
     backup="$(mktemp)"
     cp "${fetcher}" "${backup}"
     rewrite_pin "${wanted}" "${checksum}"
 
     # The pin and the bundle move together: if the fetch fails, restore the old
     # pin so a retry does not read the new version as current while the old
-    # bundle is still on disk.
+    # bundle is still on disk. The staged README is discarded with it.
     if ! bash "${fetcher}"; then
         mv "${backup}" "${fetcher}"
+        rm -f "${staged_readme}"
         echo "ERROR: fetching PhotoCraft ${wanted} failed; restored the previous pin" >&2
         return 1
     fi
     rm -f "${backup}"
 
-    rewrite_readme "${wanted}"
+    mv "${staged_readme}" "${readme}"
 
     echo "PhotoCraft ${wanted} pinned and vendored."
 }
