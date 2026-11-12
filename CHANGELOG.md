@@ -1,3 +1,12 @@
+# [1.8.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.7.0...v1.8.0) (2026-11-12)
+
+
+### Bug Fixes
+
+* **deps:** update PhotoCraft to 0.23.1 ([e4aab50](https://github.com/ashcoft/nextcloud-photo-editor/commit/e4aab50eb4adabfff4d71e3bfb1528fb85fe3c1e))
+* keep the fetcher executable through a failed bump ([30071c4](https://github.com/ashcoft/nextcloud-photo-editor/commit/30071c42c8fcdf7e0639418c8a45956434437f42))
+* make the README bump transactional and suffix-safe ([9063c2f](https://github.com/ashcoft/nextcloud-photo-editor/commit/9063c2fad163ce1063a0c3dea3591102f896b6dc))
+
 # [1.7.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.6.0...v1.7.0) (2026-11-10)
 
 
