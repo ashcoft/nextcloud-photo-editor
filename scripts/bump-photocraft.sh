@@ -12,6 +12,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fetcher="${PHOTOCRAFT_FETCHER:-${repo_root}/scripts/fetch-photocraft.sh}"
+readme="${PHOTOCRAFT_README:-${repo_root}/README.md}"
 upstream="${PHOTOCRAFT_UPSTREAM:-storytold/photocraft}"
 
 # The version is interpolated into two URLs and a sed program, and the checksum
@@ -47,7 +48,7 @@ rewrite_pin() {
     local version="$1" checksum="$2" mode tmp
     # `sed -i` is not portable between GNU and BSD, so edit through a temp file,
     # carrying the original mode across the rename to keep the script executable.
-    mode="$(stat -c '%a' "${fetcher}" 2>/dev/null || stat -f '%Lp' "${fetcher}")"
+    mode="$(file_mode "${fetcher}")"
     tmp="$(mktemp)"
     sed \
         -e "s|^PHOTOCRAFT_VERSION=\".*\"|PHOTOCRAFT_VERSION=\"${version}\"|" \
@@ -57,8 +58,38 @@ rewrite_pin() {
     mv "${tmp}" "${fetcher}"
 }
 
+# The fetcher is executable; a `mktemp` backup is 0600, so restoring through one
+# would strip the bit and break a direct `./scripts/fetch-photocraft.sh`.
+file_mode() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
+
+# The README states the vendored version in two places - the "Powered by
+# PhotoCraft" badge and the embedded-editor note. Both are rewritten into a
+# staging file whose path is printed on stdout, so the caller can reject a
+# README it cannot update before the pin moves, and apply it only once the
+# fetch has succeeded.
+#
+# The exact outgoing version is replaced, rather than a numeric prefix, so a
+# prerelease or build suffix cannot survive a later bump.
+stage_readme() {
+    local old="$1" new="$2" tmp esc_old
+    # `old` is validated semver, so only `.` is a BRE metacharacter.
+    esc_old="${old//./\\.}"
+    tmp="$(mktemp)"
+    sed \
+        -e "s|\(Powered%20by-PhotoCraft%20\)${esc_old}-|\1${new}-|" \
+        -e "s|\(currently PhotoCraft \)${esc_old}\.|\1${new}.|" \
+        "${readme}" > "${tmp}"
+    if ! grep -qF "PhotoCraft%20${new}-" "${tmp}" ||
+        ! grep -qF "currently PhotoCraft ${new}." "${tmp}"; then
+        rm -f "${tmp}"
+        echo "ERROR: could not record PhotoCraft ${new} in ${readme}" >&2
+        return 1
+    fi
+    printf '%s' "${tmp}"
+}
+
 main() {
-    local wanted current checksum backup
+    local wanted current checksum backup staged_readme backup_mode
 
     if [[ $# -ge 1 && -n "${1:-}" ]]; then
         wanted="${1#v}"
@@ -95,19 +126,36 @@ main() {
         return 1
     fi
 
+    # The README must be present and rewritable before the pin moves: if it
+    # cannot be updated, failing here leaves the tree untouched, rather than
+    # pinning a version the README never records and a retry then skips.
+    if [[ ! -f "${readme}" ]]; then
+        echo "ERROR: ${readme} does not exist" >&2
+        return 1
+    fi
+    if ! staged_readme="$(stage_readme "${current}" "${wanted}")"; then
+        return 1
+    fi
+
     backup="$(mktemp)"
     cp "${fetcher}" "${backup}"
+    backup_mode="$(file_mode "${fetcher}")"
     rewrite_pin "${wanted}" "${checksum}"
 
     # The pin and the bundle move together: if the fetch fails, restore the old
     # pin so a retry does not read the new version as current while the old
-    # bundle is still on disk.
+    # bundle is still on disk. The staged README is discarded with it, and the
+    # fetcher keeps its executable bit.
     if ! bash "${fetcher}"; then
-        mv "${backup}" "${fetcher}"
+        cp "${backup}" "${fetcher}"
+        chmod "${backup_mode}" "${fetcher}"
+        rm -f "${backup}" "${staged_readme}"
         echo "ERROR: fetching PhotoCraft ${wanted} failed; restored the previous pin" >&2
         return 1
     fi
     rm -f "${backup}"
+
+    mv "${staged_readme}" "${readme}"
 
     echo "PhotoCraft ${wanted} pinned and vendored."
 }
