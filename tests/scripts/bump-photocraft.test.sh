@@ -204,6 +204,19 @@ else
     fail "pin not restored after a failed fetch (exit ${code}, pin $(read_pin))"
 fi
 
+# 5b. The fetcher keeps its executable bit through a failed fetch, so a direct
+# `./scripts/fetch-photocraft.sh` still runs after the restore.
+mk_failing_fetcher
+chmod 755 "${work}/fetcher.sh"
+seed_readme
+code="$(FAKE_TAG=0.36.0 FAKE_SUM="$(printf 'b%.0s' {1..64})" run_bump 0.36.0)"
+mode="$(stat -c '%a' "${work}/fetcher.sh" 2>/dev/null || stat -f '%Lp' "${work}/fetcher.sh")"
+if [[ "${code}" != "0" && "${mode}" == "755" ]]; then
+    pass "keeps the fetcher executable when the fetch fails"
+else
+    fail "fetcher mode changed to ${mode} after a failed fetch (exit ${code})"
+fi
+
 echo
 if [[ "${failures}" -eq 0 ]]; then
     echo "All bump-photocraft tests passed."

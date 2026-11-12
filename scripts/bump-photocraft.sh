@@ -48,7 +48,7 @@ rewrite_pin() {
     local version="$1" checksum="$2" mode tmp
     # `sed -i` is not portable between GNU and BSD, so edit through a temp file,
     # carrying the original mode across the rename to keep the script executable.
-    mode="$(stat -c '%a' "${fetcher}" 2>/dev/null || stat -f '%Lp' "${fetcher}")"
+    mode="$(file_mode "${fetcher}")"
     tmp="$(mktemp)"
     sed \
         -e "s|^PHOTOCRAFT_VERSION=\".*\"|PHOTOCRAFT_VERSION=\"${version}\"|" \
@@ -57,6 +57,10 @@ rewrite_pin() {
     chmod "${mode}" "${tmp}"
     mv "${tmp}" "${fetcher}"
 }
+
+# The fetcher is executable; a `mktemp` backup is 0600, so restoring through one
+# would strip the bit and break a direct `./scripts/fetch-photocraft.sh`.
+file_mode() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 
 # The README states the vendored version in two places - the "Powered by
 # PhotoCraft" badge and the embedded-editor note. Both are rewritten into a
@@ -85,7 +89,7 @@ stage_readme() {
 }
 
 main() {
-    local wanted current checksum backup staged_readme
+    local wanted current checksum backup staged_readme backup_mode
 
     if [[ $# -ge 1 && -n "${1:-}" ]]; then
         wanted="${1#v}"
@@ -135,14 +139,17 @@ main() {
 
     backup="$(mktemp)"
     cp "${fetcher}" "${backup}"
+    backup_mode="$(file_mode "${fetcher}")"
     rewrite_pin "${wanted}" "${checksum}"
 
     # The pin and the bundle move together: if the fetch fails, restore the old
     # pin so a retry does not read the new version as current while the old
-    # bundle is still on disk. The staged README is discarded with it.
+    # bundle is still on disk. The staged README is discarded with it, and the
+    # fetcher keeps its executable bit.
     if ! bash "${fetcher}"; then
-        mv "${backup}" "${fetcher}"
-        rm -f "${staged_readme}"
+        cp "${backup}" "${fetcher}"
+        chmod "${backup_mode}" "${fetcher}"
+        rm -f "${backup}" "${staged_readme}"
         echo "ERROR: fetching PhotoCraft ${wanted} failed; restored the previous pin" >&2
         return 1
     fi
