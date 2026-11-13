@@ -333,34 +333,28 @@ test.describe('embedded PhotoCraft editor', () => {
     expect(body).toContain('etag-1')
   })
 
-  test('does not write a Photoshop document over a PNG', async ({ page }) => {
+  test('writes a PNG back when a PNG is saved', async ({ page }) => {
     test.setTimeout(180_000)
     await loadApp(page)
 
     const frame = page.frameLocator('iframe.photo-editor-frame')
     await expect(frame.locator('#photocraft_canvas')).toBeVisible({ timeout: 150_000 })
 
-    let saved = false
-    page.on('request', (r) => {
-      if (r.url().includes('/apps/photo_editor/api/save/') && r.method() === 'POST') {
-        saved = true
-      }
-    })
+    // Registered before the action, or the request can complete first and the
+    // wait times out.
+    const request = page.waitForRequest((r) =>
+      r.url().includes('/apps/photo_editor/api/save/') && r.method() === 'POST')
 
-    // The host declines, so the editor's own download runs. Waiting for that
-    // download is the positive signal that the save actually completed, rather
-    // than a fixed delay that a slow conversion could outlast.
-    const download = page.waitForEvent('download', { timeout: 60_000 })
-
+    // PhotoCraft's Save emits a Photoshop document; the host re-encodes it as a
+    // PNG for the `.png` target and posts that, rather than letting the browser
+    // download it to the user's computer.
     await frame.locator('body').click({ position: { x: 400, y: 300 } })
     await page.keyboard.press('Control+s')
 
-    const file = await download
-    expect(file.suggestedFilename()).toBe('holiday.psd')
+    const body = await request.then((r) => r.postData() ?? '')
 
-    // PhotoCraft always saves a PSD, and a PSD cannot replace a PNG, so no
-    // write-back was attempted.
-    expect(saved).toBe(false)
+    expect(body).toContain('data:image/png;base64,')
+    expect(body).toContain('etag-1')
   })
 
   test('uploads a preview for a Photoshop document', async ({ page }) => {

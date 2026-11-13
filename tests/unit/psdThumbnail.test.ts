@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { renderPsdThumbnail } from '../../src/editor/psdThumbnail'
+import { renderPsdThumbnail, renderPsdToDataUrl } from '../../src/editor/psdThumbnail'
 import { buildPsd } from './psdFixture'
 
 /**
@@ -39,5 +39,25 @@ describe('renderPsdThumbnail', () => {
     const bytes = buildPsd({ width: 2, height: 2 })
 
     await expect(renderPsdThumbnail(bytes)).resolves.toBeNull()
+  })
+})
+
+describe('renderPsdToDataUrl', () => {
+  it('returns null for bytes that are not a Photoshop document', async () => {
+    const notPsd = new Uint8Array([0x89, 0x50, 0x4e, 0x47])
+
+    await expect(renderPsdToDataUrl(notPsd, 'image/png')).resolves.toBeNull()
+  })
+
+  it('returns null for an empty buffer', async () => {
+    await expect(renderPsdToDataUrl(new Uint8Array(), 'image/png')).resolves.toBeNull()
+  })
+
+  it('returns null when the canvas cannot be drawn', async () => {
+    // The save path falls back to the editor's own download on null, so a
+    // document jsdom cannot composite must resolve to null rather than throw.
+    const bytes = buildPsd({ width: 2, height: 2 })
+
+    await expect(renderPsdToDataUrl(bytes, 'image/png')).resolves.toBeNull()
   })
 })

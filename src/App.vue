@@ -53,7 +53,8 @@ import { computed, defineComponent, onBeforeUnmount, ref } from 'vue'
 import { translate } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import { PhotocraftBridge, type BridgeOutput } from './editor/photocraftBridge'
-import { renderPsdThumbnail } from './editor/psdThumbnail'
+import { renderPsdThumbnail, renderPsdToDataUrl } from './editor/psdThumbnail'
+import { mimeForExtension } from './editor/mimeTypes'
 import { fetchFile } from './utils/fetchFile'
 import { saveFile } from './utils/saveFile'
 import { uploadThumbnail } from './utils/thumbnailUpload'
@@ -81,6 +82,10 @@ export default defineComponent({
     const theme = ref<'light' | 'dark'>('light')
     /** Whether the open document is a Photoshop file, which needs a preview. */
     const isPsdFile = ref(false)
+    /** Whether the open file is a raster image a save has to be re-encoded for. */
+    const isRasterFile = ref(false)
+    /** MIME type to re-encode a raster save with, from the file's extension. */
+    const rasterMime = ref('image/png')
 
     let etag = ''
     let fileId: number | null = null
@@ -110,10 +115,13 @@ export default defineComponent({
     /**
      * Whether the host can store what the editor produced.
      *
-     * The target has to be a Photoshop document for a Photoshop output, and
-     * the user has to be allowed to write it. PSB is included: PhotoCraft
-     * emits the PSD MIME for both, and the server accepts it for a `.psb`
-     * target by the document's own version field.
+     * PhotoCraft's Save always writes a layered Photoshop document, whatever
+     * was opened, and the target has to be writable. A Photoshop target stores
+     * those bytes directly; a raster target is re-encoded from them in
+     * `onSave()`, because writing Photoshop bytes under a `.png` name would
+     * leave the extension lying about the contents. When the host cannot store
+     * the result at all the editor's own download runs instead, which is what
+     * the Export button offers.
      */
     function shouldIntercept(output: { name: string; type: string }): boolean {
       const photoshopTypes = [
@@ -121,9 +129,18 @@ export default defineComponent({
         'image/vnd.adobe.photoshop-large',
       ]
 
-      return canSave.value
-        && isPsdFile.value
-        && photoshopTypes.includes(output.type)
+      if (!canSave.value) {
+        return false
+      }
+
+      // A Photoshop target takes the document as it is.
+      if (isPsdFile.value && photoshopTypes.includes(output.type)) {
+        return true
+      }
+
+      // A raster target can only take a re-encode this app can produce, so the
+      // document has to be one the compositor understands.
+      return isRasterFile.value && photoshopTypes.includes(output.type)
     }
 
     /**
@@ -165,7 +182,24 @@ export default defineComponent({
       statusMessage.value = appTranslation('Saving…')
 
       try {
-        const dataUrl = await blobToDataUrl(output.blob)
+        // A raster target cannot take the Photoshop document PhotoCraft saves,
+        // so it is re-encoded first. A null result means the document cannot be
+        // represented as the target format; the editor's own download then
+        // still runs, so the user is not left with nothing.
+        let dataUrl: string
+        if (isRasterFile.value) {
+          const bytes = new Uint8Array(await output.blob.arrayBuffer())
+          const converted = await renderPsdToDataUrl(bytes, rasterMime.value)
+          if (converted === null) {
+            statusMessage.value = appTranslation('Could not convert this document to the file format. Use Export instead.')
+            lastOutput = null
+            return
+          }
+          dataUrl = converted
+        } else {
+          dataUrl = await blobToDataUrl(output.blob)
+        }
+
         const result = await saveFile(fileId, etag, dataUrl)
 
         if (!result.ok) {
@@ -176,11 +210,14 @@ export default defineComponent({
         etag = result.etag ?? etag
         statusMessage.value = appTranslation('Saved.')
 
-        // The document changed, so its preview is stale. The bytes are the ones
-        // this save wrote, and the version is the one it returned, so the
-        // thumbnail cannot describe a different revision.
-        const bytes = new Uint8Array(await output.blob.arrayBuffer())
-        void refreshThumbnail(bytes, etag)
+        // A Photoshop document needs a preview rendered here, and the bytes
+        // this save wrote are exactly the ones to render it from, so the
+        // thumbnail cannot describe a different revision. A raster file keeps
+        // Nextcloud's own preview, which is regenerated from the stored bytes.
+        if (isPsdFile.value) {
+          const saved = new Uint8Array(await output.blob.arrayBuffer())
+          void refreshThumbnail(saved, etag)
+        }
       } catch {
         statusMessage.value = appTranslation('Could not save the file.')
       } finally {
@@ -219,6 +256,8 @@ export default defineComponent({
         fileName.value = result.meta.name
         theme.value = result.meta.theme
         isPsdFile.value = result.meta.isPsd
+        isRasterFile.value = !result.meta.isPsd && result.meta.canSave
+        rasterMime.value = mimeForExtension(result.meta.name)
 
         await bridge.open(result.meta.name, result.meta.contentType, result.bytes)
         status.value = 'ready'
