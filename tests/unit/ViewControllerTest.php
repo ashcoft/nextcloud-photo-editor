@@ -62,10 +62,19 @@ class ViewControllerTest extends TestCase
         $this->assertSame('42', $response->getParams()['fileIds']);
     }
 
-    public function testViewDefaultsToNoFile(): void
+    public function testViewWithoutAFileShowsTheStartPage(): void
     {
+        // `/view` with no id would otherwise mount the editor with nothing to
+        // open, leaving it on a permanent loading overlay.
         $response = $this->controller()->view();
 
-        $this->assertSame('', $response->getParams()['fileIds']);
+        $this->assertSame('start', $response->getTemplateName());
+    }
+
+    public function testViewWithBlankFileIdShowsTheStartPage(): void
+    {
+        $response = $this->controller()->view('   ');
+
+        $this->assertSame('start', $response->getTemplateName());
     }
 }
