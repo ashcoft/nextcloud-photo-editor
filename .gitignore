@@ -38,3 +38,6 @@ test-results/
 .DS_Store
 Thumbs.db
 .env
+
+# Nx cache and workspace data (local task history, not source)
+.nx/
