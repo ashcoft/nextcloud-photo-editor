@@ -38,3 +38,5 @@ test-results/
 .DS_Store
 Thumbs.db
 .env
+.agent/dist/
+.agent/node_modules/
