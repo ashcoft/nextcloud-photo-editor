@@ -109,6 +109,9 @@ class PhotoPreviewProvider implements IProviderV2
     private function loadImage(string $content, int $maxX, int $maxY): ?IImage
     {
         if (!function_exists('imagecreatefromstring')) {
+            // Every stored thumbnail would silently fall back to a generic
+            // icon, so the reason is logged rather than left to be guessed at.
+            $this->logger->warning('Photo Editor: GD is unavailable, so stored thumbnails cannot be served');
             return null;
         }
 

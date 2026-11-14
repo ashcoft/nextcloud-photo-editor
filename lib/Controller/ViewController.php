@@ -51,18 +51,20 @@ class ViewController extends Controller
      *
      * Reached without a file id - a bare `/view`, or a link that lost its
      * query - the landing page is shown instead of an editor with nothing to
-     * open, which would sit on a permanent "Loading" overlay.
+     * open, which would sit on a permanent "Loading" overlay. The singular
+     * `fileId` is accepted too, because the client reads either name.
      */
     #[NoAdminRequired]
     #[NoCSRFRequired]
-    public function view(string $fileIds = ''): TemplateResponse
+    public function view(string $fileIds = '', string $fileId = ''): TemplateResponse
     {
-        if (trim($fileIds) === '') {
+        $id = trim($fileIds) !== '' ? $fileIds : $fileId;
+        if (trim($id) === '') {
             return $this->index();
         }
 
         return new TemplateResponse(Application::APP_ID, 'main', [
-            'fileIds' => $fileIds,
+            'fileIds' => $id,
         ]);
     }
 }

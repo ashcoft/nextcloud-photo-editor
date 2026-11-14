@@ -77,4 +77,21 @@ class ViewControllerTest extends TestCase
 
         $this->assertSame('start', $response->getTemplateName());
     }
+
+    public function testViewAcceptsTheSingularFileId(): void
+    {
+        // The client reads either `fileIds` or `fileId` from the URL, so the
+        // controller has to accept both or a `?fileId=` link opens nothing.
+        $response = $this->controller()->view('', '42');
+
+        $this->assertSame('main', $response->getTemplateName());
+        $this->assertSame('42', $response->getParams()['fileIds']);
+    }
+
+    public function testViewPrefersFileIdsOverFileId(): void
+    {
+        $response = $this->controller()->view('7', '42');
+
+        $this->assertSame('7', $response->getParams()['fileIds']);
+    }
 }
