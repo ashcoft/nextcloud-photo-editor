@@ -38,3 +38,9 @@ test-results/
 .DS_Store
 Thumbs.db
 .env
+
+
+
+.nx/cache
+.nx/workspace-data
+.nx/migrate-runs
