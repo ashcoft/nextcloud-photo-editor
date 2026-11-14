@@ -1,3 +1,12 @@
+## [1.8.1](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.8.0...v1.8.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* accept the singular fileId and log a missing GD ([08dee05](https://github.com/ashcoft/nextcloud-photo-editor/commit/08dee058eb5e1044b7bc281083a0db72be4f17f5))
+* show the landing page when no file is open ([54b7f4d](https://github.com/ashcoft/nextcloud-photo-editor/commit/54b7f4de418e7402a353565ac9183a057e873eb4))
+* stop a failed thumbnail read from breaking PSD previews ([1b1f4ca](https://github.com/ashcoft/nextcloud-photo-editor/commit/1b1f4cad1bf9f268d442b2f1d0421ca1b74fafe7))
+
 # [1.8.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.7.0...v1.8.0) (2026-11-12)
 
 
