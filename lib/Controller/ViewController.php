@@ -48,13 +48,23 @@ class ViewController extends Controller
      *
      * Accessed from the Files sidebar action and from the start page, so it
      * must work without CSRF validation.
+     *
+     * Reached without a file id - a bare `/view`, or a link that lost its
+     * query - the landing page is shown instead of an editor with nothing to
+     * open, which would sit on a permanent "Loading" overlay. The singular
+     * `fileId` is accepted too, because the client reads either name.
      */
     #[NoAdminRequired]
     #[NoCSRFRequired]
-    public function view(string $fileIds = ''): TemplateResponse
+    public function view(string $fileIds = '', string $fileId = ''): TemplateResponse
     {
+        $id = trim($fileIds) !== '' ? $fileIds : $fileId;
+        if (trim($id) === '') {
+            return $this->index();
+        }
+
         return new TemplateResponse(Application::APP_ID, 'main', [
-            'fileIds' => $fileIds,
+            'fileIds' => $id,
         ]);
     }
 }

@@ -16,6 +16,7 @@ use OCP\Files\FileInfo;
 use OCP\IImage;
 use OCP\Image;
 use OCP\Preview\IProviderV2;
+use Psr\Log\LoggerInterface;
 
 /**
  * Serves image previews from thumbnails rendered by the browser editor.
@@ -43,6 +44,7 @@ class PhotoPreviewProvider implements IProviderV2
     public function __construct(
         private readonly ThumbnailService $thumbnailService,
         private readonly AppConfig $appConfig,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -65,6 +67,11 @@ class PhotoPreviewProvider implements IProviderV2
     /**
      * The stored image is scaled down to the requested size before it reaches
      * Nextcloud's preview pipeline.
+     *
+     * A read that fails (a locked or unreadable thumbnail, or a build without
+     * GD) returns null rather than throwing: the preview pipeline turns a
+     * thrown provider error into a failed preview request, whereas null lets
+     * the Files grid fall back to its generic icon.
      */
     #[\Override]
     public function getThumbnail(File $file, int $maxX, int $maxY): ?IImage
@@ -73,21 +80,41 @@ class PhotoPreviewProvider implements IProviderV2
             return null;
         }
 
-        $thumbnail = $this->thumbnailService->getThumbnail($file);
-        if ($thumbnail === null) {
+        try {
+            $thumbnail = $this->thumbnailService->getThumbnail($file);
+            if ($thumbnail === null) {
+                return null;
+            }
+
+            return $this->loadImage($thumbnail->getContent(), $maxX, $maxY);
+        } catch (\Throwable $e) {
+            $this->logger->warning('Photo Editor: could not serve a thumbnail', [
+                'fileId' => $file->getId(),
+                'exception' => $e,
+            ]);
+
             return null;
         }
-
-        return $this->loadImage($thumbnail->getContent(), $maxX, $maxY);
     }
 
     /**
      * Decode PNG bytes into an image, or null when they cannot be read.
      *
+     * `loadFromData()` calls the GD decoder, which is absent on a build without
+     * the GD extension; that would be a fatal error rather than a false return,
+     * so the extension is checked first.
+     *
      * @psalm-suppress MissingDependency OCP\Image extends the private OC\Image, which the OCP stub omits.
      */
     private function loadImage(string $content, int $maxX, int $maxY): ?IImage
     {
+        if (!function_exists('imagecreatefromstring')) {
+            // Every stored thumbnail would silently fall back to a generic
+            // icon, so the reason is logged rather than left to be guessed at.
+            $this->logger->warning('Photo Editor: GD is unavailable, so stored thumbnails cannot be served');
+            return null;
+        }
+
         $image = new Image();
         if ($image->loadFromData($content) === false) {
             return null;
