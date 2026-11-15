@@ -1,5 +1,6 @@
 # CircleCI mirror of the GitHub Actions checks, so a change is verified here
-# too. The image matches the Node major in package.json's `engines`.
+# too. The image matches the Node major in package.json's `engines`, and ships
+# the pnpm version `packageManager` pins, so no package-manager setup is needed.
 version: 2.1
 
 jobs:
@@ -8,11 +9,6 @@ jobs:
       - image: cimg/node:24.22
     steps:
       - checkout
-      # pnpm is pinned by `packageManager` in package.json, so corepack
-      # installs exactly that version rather than a floating latest.
-      - run:
-          name: Enable pnpm
-          command: corepack enable
       - run:
           name: Install dependencies
           command: pnpm install --frozen-lockfile
