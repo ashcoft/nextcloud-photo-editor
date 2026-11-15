@@ -1,7 +1,16 @@
 # pnpm 11+ no longer reads settings from the `pnpm` field in package.json or
-# from .npmrc; they live here instead. Both settings below were migrated from
+# from .npmrc; they live here instead. The settings below were migrated from
 # there when pnpm was bumped to v12.
-#
+
+# pnpm 12 defaults this to 1440 minutes and rejects a lockfile entry published
+# more recently than that. The check applies to resolution, so a guard here
+# blocks the dependency bots: they resolve the newest version, pnpm refuses it,
+# and the bot is left with a lockfile that no longer matches. CI then fails on
+# `--frozen-lockfile`. The guard is therefore off here and set on the updaters
+# instead, where it holds a new version back before it is proposed at all:
+# `minimumReleaseAge` in renovate.json and `cooldown` in dependabot.yml.
+minimumReleaseAge: 0
+
 # overrides: force one Babel major so the config presets and babel-jest resolve
 # the same @babel/core. Without it babel-jest picks core 7 while the presets
 # pick core 8, and jest stops stripping TypeScript.

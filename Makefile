@@ -83,7 +83,7 @@ stage: build
 		--exclude='tsconfig.json' --exclude='jest.config.js' --exclude='playwright.config.ts' \
 		--exclude='phpstan.neon' --exclude='psalm.xml' --exclude='rector.php' \
 		--exclude='eslint.config.mjs' --exclude='stylelint.config.mjs' --exclude='babel.config.js' \
-		--exclude='webpack.config.js' --exclude='.npmrc' --exclude='.nvmrc' \
+		--exclude='webpack.config.js' --exclude='.nvmrc' \
 		--exclude='.php-cs-fixer.dist.php' \
 		--exclude='openapi.json' --exclude='sonar-project.properties' \
 		--exclude='commitlint.config.js' --exclude='renovate.json' --exclude='release.config.js' \
