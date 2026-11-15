@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.8.1...v1.9.0) (2026-11-15)
+
+
+### Bug Fixes
+
+* **deps:** read the release-age setting from pnpm-workspace.yaml ([9a3deb5](https://github.com/ashcoft/nextcloud-photo-editor/commit/9a3deb57e03888f949f02718ce9d92c4e4517b86))
+
 ## [1.8.1](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.8.0...v1.8.1) (2026-11-14)
 
 
