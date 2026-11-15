@@ -73,6 +73,8 @@
     "vue-loader": "^17.4.2",
     "vue-tsc": "^3.0.0",
     "webpack": "^5.100.0",
-    "webpack-cli": "^7.0.0"
-  }
+    "webpack-cli": "^7.0.0",
+    "nx": "24.0.6"
+  },
+  "nx": {}
 }

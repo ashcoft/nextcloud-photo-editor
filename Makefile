@@ -88,6 +88,7 @@ stage: build
 		--exclude='openapi.json' --exclude='sonar-project.properties' \
 		--exclude='commitlint.config.js' --exclude='renovate.json' --exclude='release.config.js' \
 		--exclude='pnpm-workspace.yaml' \
+		--exclude='.nx' --exclude='nx.json' \
 		--exclude='coverage' --exclude='playwright-report' --exclude='test-results' \
 		. $(app_dir)/
 	find $(app_dir) -type d -exec chmod 755 {} +
