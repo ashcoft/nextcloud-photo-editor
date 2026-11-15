@@ -55,7 +55,7 @@
   "vulnerabilityAlerts": {
     "enabled": true
   },
-  "minimumReleaseAge": "3 days",
+  "minimumReleaseAge": "0",
   "prConcurrentLimit": 10,
   "prHourlyLimit": 5
 }
