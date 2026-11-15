@@ -1,3 +1,10 @@
+## [1.9.1](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.9.0...v1.9.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* stop passing --threads twice to psalm ([f68a39a](https://github.com/ashcoft/nextcloud-photo-editor/commit/f68a39afe883957dea132b58cb79a21f42378fac))
+
 # [1.9.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.8.1...v1.9.0) (2026-11-15)
 
 
