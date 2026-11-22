@@ -63,5 +63,6 @@ jobs:
 
       - name: Test the repository scripts
         run: |
+          set -euo pipefail
           bash tests/scripts/bump-photocraft.test.sh
           bash tests/scripts/pnpm-audit-workflow.test.sh
