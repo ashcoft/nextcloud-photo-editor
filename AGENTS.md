@@ -208,6 +208,13 @@ values are load-bearing.
 The `phpunit-*` workflows install the app into a real Nextcloud checkout and enable it with `occ`, so a
 change that only works in isolation will fail there even when the unit suite passes.
 
+`pnpm-audit.yml` is the app's own workflow, not an organization template. It runs `pnpm audit --fix`,
+which writes new `overrides` into `pnpm-workspace.yaml` but leaves the lockfile alone. pnpm defaults to
+`--frozen-lockfile` when `CI` is set, so the install that follows must pass `--no-frozen-lockfile` or the
+job aborts with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` before it can open its pull request. Sonar's S6505
+flags any install that is not lockfile-frozen, so that line carries `# NOSONAR`: regenerating the
+lockfile is the job's purpose, and the result is reviewed in a pull request.
+
 ### Action pinning
 
 Third-party actions are pinned to a full commit SHA, with the release it corresponds to in a trailing
