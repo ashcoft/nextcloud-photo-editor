@@ -75,9 +75,12 @@ jobs:
         env:
           CYPRESS_INSTALL_BINARY: 0
         run: |
-          # NOTE: Cannot use --frozen-lockfile because pnpm audit --fix
-          # modifies package.json overrides which requires lockfile regeneration
-          pnpm install
+          # pnpm audit --fix writes new overrides into pnpm-workspace.yaml, so
+          # the committed lockfile no longer matches. pnpm defaults to
+          # --frozen-lockfile when CI is set, which aborts with
+          # ERR_PNPM_LOCKFILE_CONFIG_MISMATCH, so the lockfile must be
+          # regenerated explicitly here.
+          pnpm install --no-frozen-lockfile # NOSONAR
           pnpm run --if-present build
 
       - name: Create Pull Request
