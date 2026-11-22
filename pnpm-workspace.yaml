@@ -22,6 +22,11 @@ overrides:
   # range is lifted to the patched line. They use only the APIs 11 keeps
   # (Minimatch, minimatch(), GLOBSTAR, escape, unescape), so the lift is safe.
   'minimatch@<11.0.1': '^11.0.1'
+  # Security: glob < 14.0.2 keeps walking the filesystem after its AbortSignal
+  # fires (GHSA-3g3m-2fjr-6pw4). test-exclude pins ^10 and Jest's own consumers
+  # pin ^13, so the range is lifted to the patched line. glob 14 keeps the same
+  # CommonJS build and `glob`/`globSync` API those consumers use.
+  'glob@>=9.0.0 <=14.0.1': '^14.0.2'
 
 # allowBuilds replaces onlyBuiltDependencies/ignoredBuiltDependencies, and
 # strictDepBuilds now defaults to true, so a skipped build fails the install.
