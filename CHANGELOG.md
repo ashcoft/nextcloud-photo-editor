@@ -1,3 +1,9 @@
+# [1.11.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.10.0...v1.11.0) (2026-11-22)
+
+### Bug Fixes
+
+* **deps:** update vue-dependencies to v3.5.46 ([b9864be](https://github.com/ashcoft/nextcloud-photo-editor/commit/b9864be24c88fa68dd9ecc11b89c1cfca3fa3179))
+
 # [1.10.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.9.1...v1.10.0) (2026-11-22)
 
 ### Bug Fixes
