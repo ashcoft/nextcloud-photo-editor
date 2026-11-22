@@ -181,6 +181,11 @@ fetcher, so it needs no network, and exercises the real validation, release reso
 selection, pin rewrite and failure restore. The `photocraft-bundle` workflow runs it alongside the
 bundle check.
 
+`tests/scripts/pnpm-audit-workflow.test.sh` covers the install step of `pnpm-audit.yml`. That job
+aborts before opening its pull request if the install becomes frozen again after `pnpm audit --fix`
+writes an override, and no other test would notice, so the workflow text is asserted directly. The
+same workflow runs it.
+
 ### Static Analysis
 
 ```bash

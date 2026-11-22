@@ -61,5 +61,7 @@ jobs:
 
           echo "The committed bundle matches the pinned PhotoCraft release."
 
-      - name: Test the updater script
-        run: bash tests/scripts/bump-photocraft.test.sh
+      - name: Test the repository scripts
+        run: |
+          bash tests/scripts/bump-photocraft.test.sh
+          bash tests/scripts/pnpm-audit-workflow.test.sh
