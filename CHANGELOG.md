@@ -1,3 +1,9 @@
+# [1.10.0](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.9.1...v1.10.0) (2026-11-22)
+
+### Bug Fixes
+
+* **deps:** override glob to a patched release ([058af8b](https://github.com/ashcoft/nextcloud-photo-editor/commit/058af8b16d5a3f821945d1647df695ce6c5c5a6b))
+
 ## [1.9.1](https://github.com/ashcoft/nextcloud-photo-editor/compare/v1.9.0...v1.9.1) (2026-11-15)
 
 
